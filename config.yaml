@@ -6,6 +6,9 @@
 
 seed: 42
 
+report:
+  team: ["López Marsico Verónica", "Acciardi Juan", "Naón Pedro", "Giannice Agustín"]
+
 data:
   default_dir: C:\datos\ncmapss       # se usa sólo si no existe NCMAPSS_DATA_DIR
   file_glob: "N-CMAPSS_DS*.h5"
@@ -74,10 +77,22 @@ tft:
   hidden_continuous_size: 16
   learning_rate: 0.003
   batch_size: 128
-  max_epochs: 60
+  max_epochs: 80
   max_epochs_sample: 3
-  patience: 8
+  patience: 10
   quantiles: [0.05, 0.5, 0.95]
+  feature_set: all                    # all · smooth (medias y pendientes) · delta (residuo − línea base por vuelo)
+  # Búsqueda chica de hiperparámetros: se elige la de menor pérdida en VALIDACIÓN (nunca en test).
+  # En modo rápido sólo se prueba la primera.
+  search:
+    - {}
+    - {hidden_size: 16, dropout: 0.2}
+    - {hidden_size: 64, learning_rate: 0.001, dropout: 0.2}
+    - {feature_set: smooth}
+    - {feature_set: smooth, learning_rate: 0.001, dropout: 0.3}
+    - {feature_set: delta, max_encoder_length: 30}
+    - {feature_set: delta, max_encoder_length: 30, hidden_size: 64, learning_rate: 0.001}
+    - {max_encoder_length: 10, learning_rate: 0.001}
 
 conformal:
   alpha: 0.10                         # 90 % de cobertura objetivo
@@ -86,10 +101,17 @@ conformal:
   aci_gamma: 0.05                     # paso de aprendizaje de Adaptive Conformal Inference
   fleet_permutations: 30              # órdenes de llegada de motores simulados para el ACI de flota
 
+results:
+  eval_min_cycle: 2                   # el TFT necesita 1 vuelo de historia: ambos modelos se evalúan desde el vuelo 2
+  rul_buckets: [0, 10, 25, 50, 75, 1000]
+  n_example_engines: 8
+
 nasa_score: {a_under: 13.0, a_over: 10.0}   # s = exp(-d/13)-1 si d<0 · exp(d/10)-1 si d>0, d = pred - real
 
 line3:                                # detección temprana (change point)
   baseline_flights: 10                # vuelos iniciales que definen la referencia sana
   cusum_k: 0.5                        # holgura del CUSUM (en desvíos estándar)
-  cusum_h: 5.0                        # umbral de alarma
-  pelt_penalty: 10.0
+  target_false_alarm: 0.10            # cada detector se calibra en motores de DESARROLLO para esta tasa de falsas alarmas
+  cusum_h_grid: [1, 60, 120]          # umbrales candidatos del CUSUM (inicio, fin, cantidad)
+  t48_z_grid: [0.5, 15, 120]          # umbrales candidatos para el residuo de T48
+  pelt_penalty_grid: [1, 200, 120]    # penalidades candidatas de PELT

@@ -46,8 +46,8 @@ class HealthyMLP(nn.Module):
         return self.net(x)
 
 
-def _load_model(paths: Paths, device: str = "cpu"):
-    ck = torch.load(paths.models / "health_mlp.pt", map_location=device, weights_only=False)
+def _load_model(paths: Paths, device: str = "cpu", tag: str = ""):
+    ck = torch.load(paths.models / f"health_mlp{tag}.pt", map_location=device, weights_only=False)
     m = HealthyMLP(len(ck["inputs"]), len(ck["outputs"]), ck["hidden"]).to(device)
     m.load_state_dict(ck["state"])
     m.eval()
@@ -64,19 +64,29 @@ def predict(model, ck, w: np.ndarray, device: str = "cpu", batch: int = 1_000_00
     return out
 
 
+def _sample_with_roles(paths: Paths, splits: pd.DataFrame) -> pd.DataFrame:
+    s = pd.read_parquet(paths.processed / "seconds_sample.parquet")
+    s["uid"] = s["ds"] + "_u" + s["unit"].astype(str).str.zfill(2)
+    return s.merge(splits[["uid", "role"]], on="uid")
+
+
 def train(cfg: dict, paths: Paths, mode: str) -> None:
-    hc = cfg["health_model"]
-    names = _names(paths)
+    """Modelo sano principal: vuelos sanos de los motores de entrenamiento (todas las clases)."""
     flights = pd.read_parquet(paths.processed / "flights_raw.parquet")
     splits = make_splits(flights, cfg)
     splits.to_parquet(paths.processed / "splits.parquet")
-
-    s = pd.read_parquet(paths.processed / "seconds_sample.parquet")
-    s["uid"] = s["ds"] + "_u" + s["unit"].astype(str).str.zfill(2)
-    s = s.merge(splits[["uid", "role"]], on="uid")
-    inputs, outputs = names["W"], names["X_s"] + names["X_v"]
+    s = _sample_with_roles(paths, splits)
     tr = s[(s["role"] == "train") & (s["hs"] == 1)]
     va = s[(s["role"] == "val") & (s["hs"] == 1)]
+    metrics = fit(cfg, paths, mode, tr, va)
+    (paths.outputs / "health_model.json").write_text(json.dumps(metrics, indent=1))
+
+
+def fit(cfg: dict, paths: Paths, mode: str, tr: pd.DataFrame, va: pd.DataFrame, tag: str = "") -> dict:
+    """Entrena la red con los segundos `tr`, la guarda como health_mlp{tag}.pt y mide R² en `va`."""
+    hc = cfg["health_model"]
+    names = _names(paths)
+    inputs, outputs = names["W"], names["X_s"] + names["X_v"]
     if len(tr) > hc["max_train_rows"]:
         tr = tr.sample(hc["max_train_rows"], random_state=cfg["seed"])
 
@@ -104,7 +114,7 @@ def train(cfg: dict, paths: Paths, mode: str) -> None:
         if step % (steps // 5) == 0:
             log.info("  modelo sano · paso %d/%d · MSE (estandarizado) %.5f", step, steps, run)
     ck["state"] = {k: v.cpu() for k, v in model.state_dict().items()}
-    torch.save(ck, paths.models / "health_mlp.pt")
+    torch.save(ck, paths.models / f"health_mlp{tag}.pt")
 
     # Qué tan bien explica el vuelo a cada sensor, en motores sanos NO vistos (validación)
     model.eval()
@@ -114,13 +124,13 @@ def train(cfg: dict, paths: Paths, mode: str) -> None:
     metrics = {"r2_val": dict(zip(outputs, r2.round(6).tolist())),
                "n_train_seconds": int(len(tr)), "n_val_seconds": int(len(va)),
                "train_units": int(tr["uid"].nunique()), "device": device}
-    (paths.outputs / "health_model.json").write_text(json.dumps(metrics, indent=1))
     log.info("  R² mediano en validación (sensores físicos): %.4f", np.median(r2[: len(names["X_s"])]))
+    return metrics
 
 
-def _residual_file(path: Path, paths: Paths, chunk_rows: int, units_by_split: dict) -> pd.DataFrame:
+def _residual_file(path: Path, paths: Paths, chunk_rows: int, units_by_split: dict, tag: str = "") -> pd.DataFrame:
     torch.set_num_threads(4)
-    model, ck = _load_model(paths)
+    model, ck = _load_model(paths, tag=tag)
     ds = dataset_name(path)
     outs = ck["outputs"]
     frames = []
@@ -152,7 +162,8 @@ def _residual_file(path: Path, paths: Paths, chunk_rows: int, units_by_split: di
     return pd.concat(frames, ignore_index=True)
 
 
-def residuals(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> None:
+def residuals(cfg: dict, paths: Paths, mode: str, workers: int = 4, tag: str = "") -> pd.DataFrame:
+    """Pasada 2: residuos por vuelo con el modelo sano health_mlp{tag}.pt -> flights{tag}.parquet."""
     flights = pd.read_parquet(paths.processed / "flights_raw.parquet")
     files = pd.read_parquet(paths.processed / "files.parquet")
     used = files[files["used"]]
@@ -161,10 +172,11 @@ def residuals(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> None:
         sub = flights[flights["ds"] == f["ds"]]
         jobs[paths.raw / f["file"]] = {sp: sorted(g["unit"].unique().tolist()) for sp, g in sub.groupby("split")}
     with ProcessPoolExecutor(max_workers=min(workers, len(jobs))) as ex:
-        futs = [ex.submit(_residual_file, p, paths, cfg["data"]["chunk_rows"], u) for p, u in jobs.items()]
+        futs = [ex.submit(_residual_file, p, paths, cfg["data"]["chunk_rows"], u, tag) for p, u in jobs.items()]
         res = pd.concat([f.result() for f in futs], ignore_index=True)
     out = flights.merge(res, on=["ds", "split", "unit", "cycle"], how="left", validate="1:1")
     if out.filter(like="res_").isna().any().any():
         raise RuntimeError("Hay vuelos sin residuo: revisar la pasada 2")
-    out.to_parquet(paths.processed / "flights.parquet")
-    log.info("Pasada 2: residuos de %d vuelos", len(out))
+    out.to_parquet(paths.processed / f"flights{tag}.parquet")
+    log.info("Pasada 2: residuos de %d vuelos (modelo sano%s)", len(out), tag or " principal")
+    return out
