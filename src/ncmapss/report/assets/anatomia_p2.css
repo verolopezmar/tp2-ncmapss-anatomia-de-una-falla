@@ -97,9 +97,6 @@
 .part.hot .n{color:var(--orange)}
 .part .t{font-weight:750;color:var(--navy);font-size:15.5px;margin-top:6px;line-height:1.25}
 .part .w{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);margin-top:8px;text-transform:uppercase}
-.presenter{display:inline-flex;align-items:center;gap:8px;margin-left:10px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--ink-2);
-  padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.75);border:1px solid var(--line);text-transform:uppercase;vertical-align:middle}
-.presenter::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--orange);box-shadow:0 0 8px rgba(243,114,44,.6)}
 
 .prof-box{position:relative;margin:8px 0 22px;padding:20px 22px 18px 26px;border-radius:18px;overflow:hidden;
   background:linear-gradient(120deg,rgba(255,244,236,.95),rgba(255,255,255,.75) 60%);border:1px solid rgba(243,114,44,.28);box-shadow:var(--lift-shadow)}

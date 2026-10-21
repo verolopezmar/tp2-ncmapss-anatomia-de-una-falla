@@ -37,8 +37,7 @@
 {%- endmacro %}
 {% macro head(n, phase, kicker, title) -%}
 <div class="chap-head reveal"><div class="chap-num" data-phase="{{ phase }}">{{ n }}</div>
-  <div><div class="chap-kicker">{{ kicker }}</div><span class="presenter">Presenta: {{ presenters[n|int - 1] }}</span>
-  <h2 class="split">{{ title }}</h2></div></div>
+  <div><div class="chap-kicker">{{ kicker }}</div><h2 class="split">{{ title }}</h2></div></div>
 {%- endmacro %}
 {% macro stat(k, value, text, color="var(--hud)", d="") -%}
 <div class="glass sn-card reveal {{ d }}"><div class="k">{{ k }}</div><div class="big" style="color:{{ color }}">{{ value }}</div><div class="t">{{ text }}</div></div>
@@ -85,7 +84,7 @@
   </div>
   <nav class="parts" aria-label="Secciones de la presentación">
     {% for t in titles %}<a class="part reveal {{ 'hot' if loop.index > 1 else '' }}" href="#s{{ loop.index }}">
-      <div class="n">{{ loop.index }}</div><div class="t">{{ t }}</div><div class="w">{{ presenters[loop.index0] }}</div></a>{% endfor %}
+      <div class="n">{{ loop.index }}</div><div class="t">{{ t }}</div></a>{% endfor %}
   </nav>
 </section>
 

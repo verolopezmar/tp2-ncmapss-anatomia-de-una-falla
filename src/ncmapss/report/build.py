@@ -254,7 +254,7 @@ def _render(template: str, R: dict, cfg: dict, mode: str) -> str:
     env = Environment(loader=FileSystemLoader(HERE / "templates"), autoescape=False)
     plotly_js = (Path(plotly.__file__).parent / "package_data" / "plotly.min.js").read_text(encoding="utf-8")
     return env.get_template(template).render(
-        mode=mode, team=cfg["report"]["team"], presenters=cfg["report"]["presenters"], lines=cfg["report"]["professor_lines"],
+        mode=mode, team=cfg["report"]["team"], lines=cfg["report"]["professor_lines"],
         S=presentation_slides(R), F=R["facts"],
         plotly_js=plotly_js,
         report_json=json.dumps(R, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/"),

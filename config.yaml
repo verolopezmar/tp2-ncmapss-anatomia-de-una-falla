@@ -8,8 +8,6 @@ seed: 42
 
 report:
   team: ["López Marsico Verónica", "Acciardi Juan", "Naón Pedro", "Giannice Agustín"]
-  # Quién presenta cada sección de la versión corta (1 = EDA, 2 = Línea 1, 3 = Línea 2, 4 = Línea 3 + cierre)
-  presenters: ["López Marsico Verónica", "Acciardi Juan", "Naón Pedro", "Giannice Agustín"]
   # Las tres líneas de investigación propuestas por el profesor (texto de la devolución, tal cual)
   professor_lines:
     - title: "Predicción de vida útil con incertidumbre"
