@@ -169,7 +169,8 @@ def run(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> None:
                            "rows_test": io.n_rows(c.path, "test") if c.ok else np.nan} for c in checks])
     finfo.to_parquet(paths.processed / "files.parquet")
 
-    args = (cfg["data"]["chunk_rows"], frac, cfg["seed"], max_units, cfg["data"]["example_flight"])
+    example = cfg["sample"]["example_flight"] if mode == "sample" else cfg["data"]["example_flight"]
+    args = (cfg["data"]["chunk_rows"], frac, cfg["seed"], max_units, example)
     results = []
     with ProcessPoolExecutor(max_workers=min(workers, len(good))) as ex:
         futs = {ex.submit(process_file, f, *args): f for f in good}

@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.ipynb text eol=lf
+*.html text eol=lf
+*.h5 binary
+*.parquet binary

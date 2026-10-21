@@ -11,18 +11,35 @@ data:
   file_glob: "N-CMAPSS_DS*.h5"
   chunk_rows: 2000000                 # filas por bloque al leer los .h5 (cuida la RAM)
   seconds_sample_frac: 0.02           # fracción de segundos que se guarda para EDA y modelo sano
-  example_flight: {dataset: DS01, unit: 5, cycle: 10}   # vuelo usado para ilustrar un perfil
+  example_flight: {dataset: DS02, unit: 2, cycle: 1}    # vuelo usado para ilustrar un perfil (el mismo de la Parte I)
 
 # Modo rápido (python scripts/run_all.py --sample): prueba todo el pipeline en minutos
 sample:
   datasets: [DS02, DS05]
   max_units_per_split: 4
   seconds_sample_frac: 0.01
+  example_flight: {dataset: DS02, unit: 2, cycle: 1}
+  example_unit: {dataset: DS02, unit: 2}
 
-flight_classes:                       # definición del paper (Arias Chao et al., 2021)
-  1: {name: corto,   hours: "1–3 h"}
-  2: {name: mediano, hours: "3–5 h"}
-  3: {name: largo,   hours: "> 5 h"}
+flight_classes:                       # nombres; las duraciones se calculan desde los datos
+  1: corto
+  2: mediano
+  3: largo
+
+# Parámetros del análisis exploratorio (umbrales y tamaños de los gráficos)
+eda:
+  component_loss_threshold_pct: 0.05  # un componente "se desgasta" si pierde más que esto en su vida
+  trend_window: 80                    # vuelos finales que se muestran en la cuenta regresiva
+  envelope_bins: 40
+  high_alt_ft: 25000                  # umbral para "vuelo alto" en la envolvente
+  plot_downsample_s: 10               # 1 punto cada N segundos en los perfiles de vuelo
+  scatter_points: 6000
+  outlier_z: 5.0                      # |z| respecto de los vuelos sanos para considerar un vuelo extremo
+  corr_strong: 0.95
+  z_alarm: 2.0                        # residuo (en desvíos sanos) considerado "fuera de lo normal"
+  life_bins: 20                       # tramos de vida para la evolución de los sensores
+  edge_flights: 5                     # vuelos iniciales / finales para medir la deriva de T48
+  example_unit: {dataset: DS01, unit: 1}   # motor usado para mostrar "antes y después" del residuo
 
 # Modelo de "motor sano": predice cada sensor a partir de las 4 condiciones de vuelo
 health_model:
@@ -35,7 +52,7 @@ health_model:
 
 # Partición sin fuga: se divide por MOTOR. El test oficial de NASA queda intacto.
 split:
-  calib_frac: 0.25                    # motores de desarrollo reservados para calibrar la incertidumbre
+  calib_frac: 0.20                    # motores de desarrollo reservados para calibrar la incertidumbre
   val_frac: 0.15                      # motores de desarrollo para early stopping
 
 features:
