@@ -8,6 +8,22 @@ seed: 42
 
 report:
   team: ["López Marsico Verónica", "Acciardi Juan", "Naón Pedro", "Giannice Agustín"]
+  # Quién presenta cada sección de la versión corta (1 = EDA, 2 = Línea 1, 3 = Línea 2, 4 = Línea 3 + cierre)
+  presenters: ["López Marsico Verónica", "Acciardi Juan", "Naón Pedro", "Giannice Agustín"]
+  # Las tres líneas de investigación propuestas por el profesor (texto de la devolución, tal cual)
+  professor_lines:
+    - title: "Predicción de vida útil con incertidumbre"
+      models: "Temporal Fusion Transformer + CatBoost + Adaptive Conformal Prediction"
+      novelty: "Predecir cuántos vuelos o ciclos le quedan al motor, incorporando intervalos de incertidumbre y controlando especialmente el riesgo de sobreestimar su vida útil."
+      application: "Mantenimiento predictivo con estimaciones más confiables para planificar inspecciones."
+    - title: "Que generaliza entre diferentes tipos de vuelo"
+      models: "Domain-Adversarial Neural Networks + PatchTST + Transfer Learning"
+      novelty: "Evaluar si un modelo entrenado con perfiles de vuelos cortos puede estimar correctamente la degradación en vuelos medianos o largos, separando el desgaste de los efectos operativos."
+      application: "Sistemas predictivos más robustos frente a cambios de rutas y condiciones de operación."
+    - title: "Detección temprana del desgaste antes de la falla"
+      models: "Self-Supervised Transformers + Masked Autoencoders + Change Point Detection"
+      novelty: "Identificar señales iniciales de degradación utilizando patrones de sensores, incluso cuando todavía no se observa una caída significativa de rendimiento."
+      application: "Generar alertas tempranas de deterioro sin depender exclusivamente de la predicción del RUL."
 
 data:
   default_dir: C:\datos\ncmapss       # se usa sólo si no existe NCMAPSS_DATA_DIR

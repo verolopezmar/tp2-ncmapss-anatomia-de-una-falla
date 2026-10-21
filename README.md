@@ -5,7 +5,11 @@
 Análisis exploratorio del dataset **NASA N-CMAPSS** (motores turbofan simulados hasta la falla con vuelos reales) y
 predicción de la **vida útil remanente (RUL) con intervalos de incertidumbre** que controlan el riesgo de sobreestimarla.
 
-- **Informe final:** [`reports/informe_final.html`](reports/informe_final.html). Descargalo y abrilo en el navegador: funciona sin conexión.
+- **Informe final (para presentar):** [`reports/informe_final.html`](reports/informe_final.html). Versión corta en 4 secciones, una por
+  integrante: (1) el problema y el EDA, (2) Línea 1 · vida útil con incertidumbre, (3) Línea 2 · generalizar entre tipos de vuelo,
+  (4) Línea 3 · detección temprana y cierre. Cada sección arranca con la línea del profesor que responde; el menú de arriba
+  lleva directo a cada una. Descargalo y abrilo en el navegador: funciona sin conexión.
+- **Anexo:** [`reports/informe_completo.html`](reports/informe_completo.html), con todo el EDA, la metodología y los resultados en detalle.
 - **Parte I (presentada antes):** [`compartir.html`](compartir.html).
 
 Integrantes: López Marsico Verónica · Acciardi Juan · Naón Pedro · Giannice Agustín.
@@ -43,7 +47,8 @@ src/ncmapss/
 notebooks/
   01_eda.ipynb · 02_rul_incertidumbre.ipynb · 03_lineas_futuras.ipynb · colab_tft.ipynb
 outputs/full/            resultados en JSON (versionados, permiten regenerar el informe sin los datos)
-reports/informe_final.html
+reports/informe_final.html      versión corta para presentar (4 secciones)
+reports/informe_completo.html   anexo con el análisis completo
 ```
 
 ## 1 · Instalación
@@ -93,7 +98,7 @@ python scripts/run_all.py              # versión completa
 ```
 
 El modo rápido sirve para probar que todo funciona; sus resultados se guardan aparte (`outputs/sample/`,
-`reports/informe_final_sample.html`) y no pisan los de la versión completa.
+`reports/informe_final_sample.html` e `informe_completo_sample.html`) y no pisan los de la versión completa.
 
 Etapas (se pueden correr sueltas con `--only` o saltear con `--skip`):
 
@@ -108,7 +113,7 @@ Etapas (se pueden correr sueltas con `--only` o saltear con `--skip`):
 | `tft` | Temporal Fusion Transformer con búsqueda de 8 configuraciones | 15–20 min con GPU |
 | `conformal` | intervalos CQR / ACI y métricas | 2 s |
 | `line2` · `line3` | experimentos de las líneas 2 y 3 | 2 min · 2 s |
-| `report` | arma `reports/informe_final.html` | 1 s |
+| `report` | arma `reports/informe_final.html` (corto) y `reports/informe_completo.html` (anexo) | 1 s |
 
 \* Medido con un Intel Core Ultra 9 y una RTX 5070 Ti. Sin GPU el TFT tarda bastante más: ver Colab abajo.
 
@@ -117,7 +122,7 @@ Ejemplos:
 ```bash
 python scripts/run_all.py --only eda report        # rehacer el EDA y el informe
 python scripts/run_all.py --skip tft               # todo menos el TFT (p. ej. si se entrena en Colab)
-python scripts/run_all.py --only report            # sólo regenerar el HTML con los resultados de outputs/full
+python scripts/run_all.py --only report            # sólo regenerar los dos HTML con los resultados de outputs/full
 ```
 
 ### Notebooks

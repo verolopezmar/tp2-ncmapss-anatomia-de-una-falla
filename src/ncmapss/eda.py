@@ -250,6 +250,7 @@ def section_flight(c: Ctx, out: dict) -> None:
              "hovertemplate": f"Clase {k} · {names[k]}<br>%{{y:.2f}} h<extra></extra>"} for k in sorted(f["Fc"].unique())]
     out["figures"]["flight_class"] = fig(data, height=430, showlegend=False, yaxis={"title": {"text": "Duración del vuelo [h]"}})
     ks = fc.index.tolist()
+    out["facts"]["fc_hours"] = " / ".join(num(fc.loc[k, "h"], 1) for k in ks) + " h"
     out["insights"]["flight_class"] = (
         "Duración media de " + ", ".join(f"<b>{num(fc.loc[k, 'h'], 1)} h</b> ({names[k]})" for k in ks) +
         f". Los vuelos largos además suben más ({num(fc['alt'].iloc[-1])} ft contra {num(fc['alt'].iloc[0])} ft de altitud máxima media). "
@@ -561,6 +562,7 @@ def section_signals(c: Ctx, out: dict) -> None:
         (f" {', '.join(flips)} cambian de signo según el escenario (suben en unos y bajan en otros)." if flips else "") +
         f" {' y '.join(weak)} casi no cambian (|ρ| medio ≤ {num(strength[weak].max(), 2)}).")
     c.top4, c.rho = top4, rho
+    out["facts"]["top_sensors"] = ", ".join(top4)
 
     # Cuenta regresiva: residuo de los 4 mejores sensores en los últimos vuelos
     w = e["trend_window"]

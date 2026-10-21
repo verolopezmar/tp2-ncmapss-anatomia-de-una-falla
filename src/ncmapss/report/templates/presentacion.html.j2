@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomía de una Falla · Parte II</title>
+<meta name="description" content="Laboratorio II · TP2. Versión para presentar: EDA de N-CMAPSS y respuesta a las tres líneas de investigación propuestas (RUL con incertidumbre, generalización entre tipos de vuelo y detección temprana).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- ═══ GENERADO AUTOMÁTICAMENTE por src/ncmapss/report/build.py ═════════════
+     Versión corta para presentar. La versión completa es informe_completo.html.
+     No editar a mano: python scripts/run_all.py --only report
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script>{{ plotly_js }}</script>
+<script>window.REPORT = {{ report_json }};</script>
+<style>
+{{ css }}
+</style>
+</head>
+<body>
+<div class="bg-mesh"></div><div class="bg-grid"></div>
+{{ svg_defs }}
+
+{% set titles = ["El problema y el EDA", "Línea 1 · Vida útil con incertidumbre", "Línea 2 · Generalizar entre tipos de vuelo", "Línea 3 · Detección temprana y cierre"] %}
+{% macro profbox(i) -%}
+{% set L = lines[i] %}
+<div class="prof-box reveal">
+  <div class="tag">Línea {{ i + 1 }} propuesta por el profesor</div>
+  <h4>{{ L.title }}</h4>
+  <div class="rows">
+    <div class="row"><b>NOVEDAD A INVESTIGAR</b>{{ L.novelty }}</div>
+    <div class="row"><b>APLICACIÓN</b>{{ L.application }}</div>
+  </div>
+  <div class="models">{% for m in L.models.split(" + ") %}<span>{{ m }}</span>{% endfor %}</div>
+</div>
+{%- endmacro %}
+{% macro head(n, phase, kicker, title) -%}
+<div class="chap-head reveal"><div class="chap-num" data-phase="{{ phase }}">{{ n }}</div>
+  <div><div class="chap-kicker">{{ kicker }}</div><span class="presenter">Presenta: {{ presenters[n|int - 1] }}</span>
+  <h2 class="split">{{ title }}</h2></div></div>
+{%- endmacro %}
+{% macro stat(k, value, text, color="var(--hud)", d="") -%}
+<div class="glass sn-card reveal {{ d }}"><div class="k">{{ k }}</div><div class="big" style="color:{{ color }}">{{ value }}</div><div class="t">{{ text }}</div></div>
+{%- endmacro %}
+
+<!-- ═══ NAVEGACIÓN POR SECCIÓN ═════════════════════════════════════════════════ -->
+<header class="topbar" id="topbar">
+  <div class="brand"><span class="dot"></span>N-CMAPSS · LAB II · TP2</div>
+  <nav class="chapnav" id="chapnav">
+    {% for t in titles %}<a href="#s{{ loop.index }}">{{ loop.index }} · {{ ["EDA", "LÍNEA 1", "LÍNEA 2", "LÍNEA 3"][loop.index0] }}</a>{% endfor %}
+    <a href="informe_completo.html" class="annex-link">ANEXO ↗</a>
+  </nav>
+</header>
+<aside class="altimeter" id="altimeter" aria-hidden="true">
+  <div class="read">ALT<b id="altRead">0</b>ft</div>
+  <div class="tape" id="tape"><div class="bug" id="bug"><svg viewBox="0 0 20 20" width="20" height="20"><path d="M2 10 L14 4 L14 16 Z" fill="var(--hud)"/></svg></div></div>
+  <div class="read" id="phaseRead">TAXI</div>
+</aside>
+
+<!-- ═══ PORTADA E ÍNDICE ═══════════════════════════════════════════════════════ -->
+<section class="hero" id="top">
+  <canvas id="particles" aria-hidden="true"></canvas>
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow reveal">Laboratorio II · TP2 · Parte II</div>
+      <h1 class="reveal d1">Anatomía<br><span class="hot">de una falla</span></h1>
+      <div class="sub reveal d1">Cuánto le queda y con qué certeza</div>
+      <p class="lead reveal d2">El EDA de N-CMAPSS y el modelo propuesto, respondiendo a las <b>tres líneas de investigación</b> de la devolución.</p>
+      <div class="team-label reveal d2">INTEGRANTES</div>
+      <div class="team reveal d3">{% for p in team %}<span>{{ p }}</span>{% endfor %}</div>
+    </div>
+    <div class="instrument reveal d2">
+      <div class="tag"><span>MOTOR TURBOFAN · CORTE LONGITUDINAL</span><span>FLUJO →</span></div>
+      {{ hero_engine }}
+      <div class="hud-strip" aria-label="Lecturas de un vuelo real del dataset">
+        <div class="hud-cell"><div class="k">ALTITUD</div><div class="v"><span id="hAlt">—</span><small>ft</small></div></div>
+        <div class="hud-cell"><div class="k">MACH</div><div class="v"><span id="hMach">—</span></div></div>
+        <div class="hud-cell"><div class="k">POTENCIA</div><div class="v"><span id="hTra">—</span><small>%</small></div></div>
+        <div class="hud-cell hot"><div class="k">T48 TURBINA</div><div class="v"><span id="hT48">—</span><small>°R</small></div></div>
+        <div class="hud-cell"><div class="k">TIEMPO</div><div class="v"><span id="hT">—</span><small>s</small></div></div>
+      </div>
+      <div class="hud-note">Lecturas reales de <span id="hLabel">un vuelo del dataset</span>.</div>
+    </div>
+  </div>
+  <nav class="parts" aria-label="Secciones de la presentación">
+    {% for t in titles %}<a class="part reveal {{ 'hot' if loop.index > 1 else '' }}" href="#s{{ loop.index }}">
+      <div class="n">{{ loop.index }}</div><div class="t">{{ t }}</div><div class="w">{{ presenters[loop.index0] }}</div></a>{% endfor %}
+  </nav>
+</section>
+
+<main>
+<!-- ═══ 1 · EL PROBLEMA Y EL EDA ═══════════════════════════════════════════════ -->
+<section class="chapter compact" id="s1">
+  {{ head("1", "DESPEGUE", "Sección 1", "El problema y el EDA") }}
+  <div class="prof-box cold reveal">
+    <div class="tag">El problema</div>
+    <h4>¿Cuántos vuelos le quedan a cada motor antes de fallar?</h4>
+    <div class="rows">
+      <div class="row"><b>EL DATASET</b>NASA N-CMAPSS: {{ F.n_units }} motores turbofan simulados con vuelos reales hasta la falla. {{ F.n_flights }} vuelos, {{ F.rows_total_fmt }} registros (uno por segundo), 14 sensores.</div>
+      <div class="row"><b>LO QUE PREDECIMOS</b>El RUL (vida útil remanente) = vida total − n° de vuelo, para planificar inspecciones antes de la falla.</div>
+    </div>
+  </div>
+  <div class="kpis" id="kpis" style="margin:0 0 6px"></div>
+  <h3 class="reveal">Cuatro hallazgos que definen el modelo</h3>
+  <div class="takeaways four">
+    {% for c in S.eda %}<div class="glass take reveal d{{ loop.index0 % 3 }}"><div class="k">{{ c.k|upper }}</div><h4>{{ c.title }}</h4><p>{{ c.text }}</p></div>{% endfor %}
+  </div>
+  <div class="glass figure hot reveal" data-fig="normalization" data-short>
+    <div class="fig-code">EL VUELO TAPA EL DESGASTE</div><div class="fig-title">El mismo motor, antes y después de descontar el vuelo</div>
+    <div class="howto">Arriba T48 medido · abajo el residuo: ρ con el RUL pasa de {{ F.norm_rho_raw }} a {{ F.norm_rho_res }}.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="grid2">
+    <div class="glass figure hot reveal" data-fig="sensor_trends" data-short>
+      <div class="fig-code">QUÉ SENSORES ANTICIPAN LA FALLA</div><div class="fig-title">Los 4 mejores sensores, camino a la falla</div>
+      <div class="howto">Mediana de los motores · banda = mitad central.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure hot reveal d1" data-fig="life_vs_fc" data-short>
+      <div class="fig-code">CUÁNTO DURA UN MOTOR</div><div class="fig-title">Vida según el tipo de vuelo</div>
+      <div class="howto">Cada punto es un motor · color = corto / mediano / largo.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 2 · LÍNEA 1 ════════════════════════════════════════════════════════════ -->
+<section class="chapter compact" id="s2">
+  {{ head("2", "CRUCERO", "Sección 2 · Línea 1 (la principal)", "Vida útil con incertidumbre") }}
+  {{ profbox(0) }}
+  <div class="big3">
+    {{ stat("PLANIFICANDO CON LA COTA INFERIOR", F.r_miss_over_aci, "de los vuelos sobreestima la vida, contra " ~ F.r_over_point ~ " de la predicción puntual.", "var(--orange)") }}
+    {{ stat("COBERTURA DEL INTERVALO (ACI)", F.r_coverage_aci, "de los vuelos con el RUL real adentro (objetivo " ~ F.r_target ~ "), ancho medio " ~ F.r_width_aci ~ " vuelos.", "var(--hud)", "d1") }}
+    {{ stat("ERROR EN MOTORES NUNCA VISTOS", F.p_rmse_cb ~ " · " ~ F.p_rmse_tft, "RMSE en vuelos de CatBoost · TFT (score NASA " ~ F.p_nasa_cb ~ " · " ~ F.p_nasa_tft ~ ").", "var(--navy)", "d2") }}
+  </div>
+  <div class="glass figure hot reveal" data-fig="engine_examples" data-short>
+    <div class="fig-code">EL MODELO EN ACCIÓN</div><div class="fig-title">Predicción vuelo a vuelo con su intervalo</div>
+    <div class="howto">Banda = intervalo · azul = predicción · naranja = RUL real. La cota inferior es la que se usa para planificar.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="coverage_by_rul" data-short>
+    <div class="fig-code">CALIBRAR LA INCERTIDUMBRE</div><div class="fig-title">Cobertura cerca y lejos de la falla</div>
+    <div class="howto">Sin calibrar (gris) vs. conformal: lo que más importa es el tramo cercano a la falla.</div>
+    <div class="plot short"></div>
+  </div>
+  <div class="glass panel reveal"><div class="label">CatBoost vs. TFT con ACI · motores de prueba</div><div class="tbl-wrap" id="modelCompare"></div></div>
+  <div class="duo">
+    <div class="glass panel reveal" style="margin:0"><h4>{{ S.model_title }}: por qué</h4><ul class="points">{% for p in S.why_model %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div class="glass panel reveal d1" style="margin:0"><h4>{{ S.why_cov_title }}</h4><ul class="points hot">{% for p in S.why_cov %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+
+<!-- ═══ 3 · LÍNEA 2 ════════════════════════════════════════════════════════════ -->
+<section class="chapter compact" id="s3">
+  {{ head("3", "CRUCERO", "Sección 3 · Línea 2", "Generalizar entre tipos de vuelo") }}
+  {{ profbox(1) }}
+  <div class="big3">
+    {{ stat("TODAS LAS CLASES · " ~ F.p_l2_units_all ~ " MOTORES", F.p_l2_A, "RMSE en vuelos " ~ F.p_l2_class ~ ".", "var(--navy)") }}
+    {{ stat("CONTROL · " ~ F.p_l2_units ~ " MOTORES AL AZAR", F.p_l2_E, "mismo número de motores que sólo cortos: +" ~ F.p_l2_data ~ " por tener menos datos.", "var(--ti)", "d1") }}
+    {{ stat("SÓLO VUELOS CORTOS · " ~ F.p_l2_units ~ " MOTORES", F.p_l2_C, "+" ~ F.p_l2_domain ~ " vuelos de error por no haber visto vuelos " ~ F.p_l2_class ~ ".", "var(--orange)", "d2") }}
+  </div>
+  <div class="glass figure reveal" data-fig="line2" data-short>
+    <div class="fig-code">EL EXPERIMENTO</div><div class="fig-title">Entrenar con vuelos cortos, evaluar en todos</div>
+    <div class="howto">RMSE de CatBoost en motores de prueba de cada clase según con qué se entrenó.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="duo">
+    <div class="glass panel reveal" style="margin:0"><h4>Qué encontramos</h4><ul class="points">{% for p in S.l2 %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div class="glass figure reveal d1" data-fig="flight_shapes" data-short style="margin:0">
+      <div class="fig-code">POR QUÉ CUESTA</div><div class="fig-title">Cada clase vuela distinto</div>
+      <div class="howto">Mediana de altitud y potencia a lo largo del vuelo.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <h3 class="reveal">Qué faltaría (trabajo futuro)</h3>
+  <div class="cards3">{% for c in S.l2_future %}<div class="glass mini reveal d{{ loop.index0 }}"><div class="k">{{ c.k }}</div><h5>{{ c.title }}</h5><p>{{ c.text }}</p></div>{% endfor %}</div>
+</section>
+
+<!-- ═══ 4 · LÍNEA 3 Y CIERRE ═══════════════════════════════════════════════════ -->
+<section class="chapter compact" id="s4">
+  {{ head("4", "ATERRIZAJE", "Sección 4 · Línea 3 y cierre", "Detectar el desgaste temprano") }}
+  {{ profbox(2) }}
+  <div class="big3">
+    {{ stat("DEMORA MEDIANA DE LA ALARMA", F.p_l3_delay ~ " vuelos", "después del inicio real de la degradación (CUSUM online).", "var(--orange)") }}
+    {{ stat("DESGASTE OCURRIDO AL AVISAR", F.p_l3_wear ~ " %", "del desgaste total del componente: todavía no hay caída de rendimiento.", "var(--hud)", "d1") }}
+    {{ stat("ANTICIPACIÓN A LA FALLA", F.p_l3_lead ~ " vuelos", "de margen (mediana) entre la alarma y la falla, sin usar el RUL.", "var(--navy)", "d2") }}
+  </div>
+  <div class="grid2">
+    <div class="glass figure hot reveal" data-fig="line3_example" data-short>
+      <div class="fig-code">UN MOTOR DE PRUEBA</div><div class="fig-title">Índice de salud y alarma</div>
+      <div class="howto">Línea punteada = inicio real · líneas de color = alarmas.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure hot reveal d1" data-fig="line3_delay" data-short>
+      <div class="fig-code">TODOS LOS MOTORES DE PRUEBA</div><div class="fig-title">Cuándo avisa cada detector</div>
+      <div class="howto">0 = inicio real de la degradación.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass panel reveal"><h4 style="margin:0 0 10px;color:var(--navy)">Cómo funciona</h4><ul class="points hot">{% for p in S.l3 %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  <h3 class="reveal">Qué faltaría (trabajo futuro)</h3>
+  <div class="cards3">{% for c in S.l3_future %}<div class="glass mini reveal d{{ loop.index0 }}"><div class="k">{{ c.k }}</div><h5>{{ c.title }}</h5><p>{{ c.text }}</p></div>{% endfor %}</div>
+
+  <h3 class="reveal">Conclusiones</h3>
+  <div class="takeaways" id="closing" style="grid-template-columns:repeat(2,1fr)"></div>
+  <h3 class="reveal">Limitaciones</h3>
+  <ul class="points">{% for p in S.limits %}<li class="reveal">{{ p }}</li>{% endfor %}</ul>
+  <a class="annex reveal" href="informe_completo.html">Anexo: informe completo con todo el EDA y la metodología ↗</a>
+</section>
+</main>
+
+<footer class="glass">
+  <div><h5>INTEGRANTES</h5><ul>{% for p in team %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  <div>
+    <h5>FUENTES</h5>
+    <p>NASA N-CMAPSS · Arias Chao et al. (2021). Lim et al. (2021), TFT · Romano et al. (2019), CQR · Gibbs y Candès (2021), ACI · Prokhorenkova et al. (2018), CatBoost.</p>
+    <p class="mono" id="genStamp" style="font-size:11px"></p>
+  </div>
+</footer>
+
+<script>
+{{ app_js }}
+</script>
+</body>
+</html>

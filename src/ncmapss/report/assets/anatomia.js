@@ -66,7 +66,7 @@ function EngineSchematic(svg, {colored}) {
 /* ═══ 2 · CONTENIDO GENERADO POR EL PIPELINE ═════════════════════════════════ */
 function bindFacts() {
   $$('[data-kpi]').forEach(el => { const v = R.facts[el.dataset.kpi]; if (v !== undefined) el.textContent = v; });
-  $('#genStamp').textContent = `Generado por scripts/run_all.py el ${R.generated} · modo ${R.mode}`;
+  if ($('#genStamp')) $('#genStamp').textContent = `Generado por scripts/run_all.py el ${R.generated} · modo ${R.mode}`;
 }
 function renderKpis() {
   $('#kpis').innerHTML = R.kpis.map(k =>
@@ -287,6 +287,7 @@ const Charts = {
     if (!spec) { el.innerHTML = `<div class="missing">Falta el gráfico “${id}”: corré la etapa correspondiente de run_all.py</div>`; return; }
     document.fonts.ready.then(() => Plotly.newPlot(el, Charts.resolve(spec.data), Charts.layout(Charts.resolve(spec.layout||{})),
       {responsive:true, displaylogo:false, modeBarButtonsToRemove:['lasso2d','select2d','autoScale2d']}));
+    if (card.hasAttribute('data-short')) return;     // versión corta: sin lectura larga ni tabla
     const ins = R.insights[id];
     if (ins) card.insertAdjacentHTML('beforeend', `<div class="insight"><div class="ic">LECTURA</div><div>${ins}</div></div>`);
     const tbl = R.tables && R.tables[id];
@@ -361,15 +362,22 @@ function initParticles() {
 }
 
 /* ═══ 7 · INICIO ═════════════════════════════════════════════════════════════ */
+// El mismo script sirve para la versión corta y la completa: cada parte se dibuja sólo si su elemento existe.
+const when = (sel, fn) => { if ($(sel)) fn(); };
 const methodHl = r => /ACI/.test(r.intervalo || '') && r.modelo === R.facts.r_main_model;
-renderKpis(); bindFacts(); renderHierarchy(); renderExampleRow(); renderVarGroups(); renderScenarios();
-renderCards('#takeaways', R.takeaways); renderCards('#conclusions', R.conclusions); renderSignalNoise(); renderChecks(); renderDecisions();
+when('#kpis', renderKpis); bindFacts(); when('#hier', renderHierarchy); when('#exRow', renderExampleRow);
+when('#vars', renderVarGroups); when('#scenTable', renderScenarios);
+renderCards('#takeaways', R.takeaways); renderCards('#conclusions', R.conclusions); renderCards('#closing', R.closing);
+when('#snCards', renderSignalNoise); when('#checks', renderChecks); when('#decisions', renderDecisions);
 renderTable('#splitTable', R.split_summary);
 renderTable('#metricsTable', R.metrics_table, {hl: methodHl});
+renderTable('#modelCompare', (R.metrics_table||[]).filter(r => /ACI/.test(r.intervalo)).map(r => ({modelo: r.modelo, RMSE: r.RMSE, 'score NASA': r['score NASA'],
+  'cobertura [%]': r['cobertura [%]'], 'ancho [vuelos]': r['ancho medio [vuelos]'], '% real < cota inferior': r['% real < cota inferior']})), {hl: r => r.modelo === R.facts.r_main_model});
 renderTable('#line2Table', R.line2_table, {hl: r => /^C/.test(r.variante)});
 renderTable('#line3Table', R.line3_table, {hl: r => /CUSUM/.test(r['método'])});
 renderTable('#searchTable', R.tft_search);
-renderModels(); renderParagraphs('#discussion', R.discussion); renderParagraphs('#futureText', R.future_discussion);
-initHud(); initSteps(); initPlan(); initStations(); initFlightPath(); initAnatomy();
-initReveal(); initScrollChrome(); initParticles();
+when('#models', renderModels); renderParagraphs('#discussion', R.discussion); renderParagraphs('#futureText', R.future_discussion);
+when('#hAlt', initHud); when('#engSteps', initSteps); when('#planSvg', initPlan); when('#stationSvg', initStations);
+when('#flightpath', initFlightPath); when('#anatSvg', initAnatomy);
+initReveal(); initScrollChrome(); when('#particles', initParticles);
 })();
