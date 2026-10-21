@@ -1,0 +1,46 @@
+<svg class="hero-engine" viewBox="0 0 1080 330" role="img" aria-label="Corte de un motor turbofan: el aire entra frío por la izquierda y sale caliente por la derecha">
+        <ellipse cx="520" cy="312" rx="430" ry="12" fill="#0a2540" opacity=".22" filter="url(#blur12)"/>
+        <!-- góndola -->
+        <path d="M70 46 Q92 24 172 26 L842 70 Q902 78 932 116 L932 196 Q902 234 842 242 L172 286 Q92 288 70 266 Z" fill="url(#metal)" stroke="#9fb0c3" stroke-width="1.2" filter="url(#drop)"/>
+        <path d="M86 44 Q104 32 172 34 L840 76" fill="none" stroke="#fff" stroke-width="2" opacity=".9"/>
+        <!-- núcleo en corte -->
+        <path d="M250 100 L780 116 Q830 124 850 156 Q830 188 780 196 L250 212 Q234 156 250 100 Z" fill="url(#cavity)" stroke="#9fb0c3"/>
+        <path d="M250 100 L780 116 Q830 124 850 156 Q830 188 780 196 L250 212 Q234 156 250 100 Z" fill="url(#heatTint)"/>
+        <!-- flujo de aire -->
+        <path d="M120 64 L840 90" stroke="#7cc6e6" stroke-width="1.6" class="flowdash" opacity=".85"/>
+        <path d="M120 248 L840 222" stroke="#7cc6e6" stroke-width="1.6" class="flowdash" opacity=".85"/>
+        <path d="M120 156 L1062 156" stroke="url(#gasPath)" stroke-width="3" class="flowdash fast"/>
+        <path d="M250 132 L850 146" stroke="url(#gasPath)" stroke-width="1.6" class="flowdash" opacity=".75"/>
+        <path d="M250 180 L850 166" stroke="url(#gasPath)" stroke-width="1.6" class="flowdash" opacity=".75"/>
+        <!-- eje -->
+        <rect x="130" y="152" width="680" height="8" rx="4" fill="url(#metal)" opacity=".8"/>
+        <!-- fan -->
+        <ellipse cx="140" cy="156" rx="14" ry="120" fill="none" stroke="#b7c4d3" stroke-width="1.4"/>
+        <rect x="128" y="38" width="14" height="236" rx="7" fill="url(#bladeCold)" opacity=".35"/>
+        <line x1="135" y1="40" x2="135" y2="272" stroke="#2a9fd6" stroke-width="6" class="blades"/>
+        <line x1="148" y1="46" x2="148" y2="266" stroke="#1d4ed8" stroke-width="3" class="blades rev" opacity=".7"/>
+        <path d="M100 156 Q100 126 132 120 L132 192 Q100 186 100 156Z" fill="url(#spinner)"/>
+        <!-- compresores -->
+        <g fill="url(#bladeCold)">
+          <rect x="266" y="108" width="8" height="96" rx="4"/><rect x="288" y="110" width="8" height="92" rx="4"/><rect x="310" y="112" width="8" height="88" rx="4"/>
+          <rect x="356" y="118" width="7" height="76" rx="3.5"/><rect x="374" y="120" width="7" height="72" rx="3.5"/><rect x="392" y="122" width="7" height="68" rx="3.5"/>
+          <rect x="410" y="124" width="7" height="64" rx="3.5"/><rect x="428" y="126" width="7" height="60" rx="3.5"/>
+        </g>
+        <!-- combustión -->
+        <ellipse cx="510" cy="156" rx="64" ry="36" fill="url(#burn)" filter="url(#blur6)" class="flame" opacity=".9"/>
+        <ellipse cx="510" cy="156" rx="34" ry="16" fill="url(#burn)" class="flame"/>
+        <!-- turbinas -->
+        <g fill="url(#bladeHot)">
+          <rect x="586" y="120" width="9" height="72" rx="4.5"/><rect x="608" y="119" width="9" height="74" rx="4.5"/>
+          <rect x="666" y="114" width="9" height="84" rx="4.5"/><rect x="690" y="112" width="9" height="88" rx="4.5"/>
+          <rect x="714" y="110" width="9" height="92" rx="4.5"/><rect x="738" y="109" width="9" height="94" rx="4.5"/>
+        </g>
+        <!-- escape -->
+        <path d="M932 122 Q1000 134 1080 156 Q1000 178 932 190 Z" fill="url(#plume)" filter="url(#blur6)" class="plume"/>
+        <!-- rótulos -->
+        <g font-family="JetBrains Mono, monospace" font-size="11.5" letter-spacing="1.5" text-anchor="middle" font-weight="700">
+          <text x="140" y="306" fill="#2a9fd6">FAN</text><text x="292" y="306" fill="#2a9fd6">LPC</text>
+          <text x="396" y="306" fill="#1d4ed8">HPC</text><text x="510" y="306" fill="#c98a00">COMBUSTIÓN</text>
+          <text x="601" y="306" fill="#d62828">HPT</text><text x="706" y="306" fill="#f3722c">LPT</text><text x="1000" y="306" fill="#6a7e97">ESCAPE</text>
+        </g>
+      </svg>

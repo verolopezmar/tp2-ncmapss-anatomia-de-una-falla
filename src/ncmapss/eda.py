@@ -477,18 +477,13 @@ def section_wear(c: Ctx, out: dict) -> None:
                              "name": f"Fase {phase}", "legendgroup": phase, "showlegend": False, "visible": ds == loss.index[0],
                              "line": {"color": col, "width": w},
                              "hovertemplate": f"{ds} · motor {int(u['unit'].iloc[0])}<br>vuelo %{{x}}<br>{md.short_param(p)}: %{{y:.2f}} %<extra>{phase}</extra>"})
-    for ds in loss.index:     # una sola entrada de leyenda por fase en cada vista
+    for ds in loss.index:     # una entrada de leyenda por fase en cada subconjunto (Plotly oculta las de trazas invisibles)
         seen = set()
         for i in vis_by_ds[ds]:
-            data[i]["_ds"] = ds
+            if data[i]["legendgroup"] not in seen:
+                data[i]["showlegend"] = True
+                seen.add(data[i]["legendgroup"])
     first_ds = loss.index[0]
-    seen = set()
-    for i in vis_by_ds[first_ds]:
-        if data[i]["legendgroup"] not in seen:
-            data[i]["showlegend"] = True
-            seen.add(data[i]["legendgroup"])
-    for d in data:
-        d.pop("_ds", None)
     buttons = []
     for ds in loss.index:
         vis = [False] * len(data)

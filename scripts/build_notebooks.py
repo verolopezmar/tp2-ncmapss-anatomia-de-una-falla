@@ -166,12 +166,47 @@ def future_notebook():
   en vuelos medianos y largos? ¿Ayuda descontar el efecto operativo (residuos) frente a usar sensores crudos?
 - **Línea 3 · Detección temprana:** ¿se puede detectar el inicio de la degradación (cambio de régimen) antes de que la
   vida útil caiga, sólo con los sensores? Se compara contra el inicio real (`hs`).
-"""), code(SETUP), code("R = nb.load('results', MODE)"),
-        md("## Línea 2 · De vuelos cortos a vuelos largos"), code("import pandas as pd\npd.DataFrame(R['line2_table'])"),
-        code("nb.show('line2', R)"),
-        md("## Línea 3 · Detección temprana con change points"), code("pd.DataFrame(R['line3_table'])"),
-        code("nb.show('line3_delay', R)"), code("nb.show('line3_example', R)"),
-        md("## Lectura"), code("for t in R['future_discussion']: nb.html('<p>'+t+'</p>')")]
+"""), code(SETUP), code("L2 = nb.load('line2', MODE)\nL3 = nb.load('line3', MODE)\nimport pandas as pd\npd.set_option('display.max_colwidth', None)"),
+        md("## Línea 2 · De vuelos cortos a vuelos largos"), code("pd.DataFrame(L2['line2_table'])"),
+        code("nb.show('line2', L2)"),
+        md("## Línea 3 · Detección temprana con change points"), code("pd.DataFrame(L3['line3_table'])"),
+        code("nb.show('line3_delay', L3)"), code("nb.show('line3_example', L3)"),
+        md("## Lectura y trabajo futuro"), code("for t in L2['future_discussion_l2'] + L3['future_discussion_l3']: nb.html('<p>'+t+'</p>')")]
+
+
+def colab_notebook():
+    return [md("""
+# Anatomía de una Falla · Parte II — Entrenar el TFT en Google Colab
+
+Para quien no tenga GPU NVIDIA. El TFT sólo necesita **dos archivos procesados** (unos pocos MB), no los 29 GB del dataset:
+
+- `model_table.parquet` y `features.json`, que genera localmente
+  `python scripts/run_all.py --only prepare health residuals features`
+  en `<NCMAPSS_DATA_DIR>/processed/full/`.
+
+**Pasos:** `Entorno de ejecución → Cambiar tipo de entorno → GPU (T4)`, correr las celdas en orden, subir los dos archivos
+cuando se pidan y al final descargar `preds_tft.parquet` y `model_tft.json`. Copiarlos a `outputs/full/` del repo local y correr
+`python scripts/run_all.py --only conformal report`. El informe indica que el TFT se entrenó en Colab.
+"""), code("!nvidia-smi --query-gpu=name,memory.total --format=csv"),
+        code("""
+!git clone -q https://github.com/verolopezmar/tp2-ncmapss-anatomia-de-una-falla.git repo
+%cd repo
+!pip install -q pytorch-forecasting==1.8.0 lightning==2.6.6 catboost==1.2.10 python-dotenv pyyaml
+"""), code("""
+import os, pathlib
+os.environ["NCMAPSS_DATA_DIR"] = "/content/ncmapss_data"
+dest = pathlib.Path("/content/ncmapss_data/processed/full"); dest.mkdir(parents=True, exist_ok=True)
+from google.colab import files
+up = files.upload()                       # elegir model_table.parquet y features.json
+for name, data in up.items():
+    (dest / name).write_bytes(data)
+print(sorted(p.name for p in dest.iterdir()))
+"""), code("!python scripts/run_all.py --only tft"),
+        code("""
+from google.colab import files
+for f in ["outputs/full/preds_tft.parquet", "outputs/full/model_tft.json"]:
+    files.download(f)
+""")]
 
 
 def main():
@@ -179,7 +214,8 @@ def main():
     ap.add_argument("--execute", action="store_true")
     a = ap.parse_args()
     NB.mkdir(exist_ok=True)
-    books = {"01_eda.ipynb": eda_notebook(), "02_rul_incertidumbre.ipynb": rul_notebook(), "03_lineas_futuras.ipynb": future_notebook()}
+    books = {"01_eda.ipynb": eda_notebook(), "02_rul_incertidumbre.ipynb": rul_notebook(),
+             "03_lineas_futuras.ipynb": future_notebook(), "colab_tft.ipynb": colab_notebook()}
     for name, cells in books.items():
         n = nbf.v4.new_notebook()
         n.cells = cells
@@ -188,7 +224,7 @@ def main():
         print("escrito", name)
     if a.execute:
         from nbconvert.preprocessors import ExecutePreprocessor
-        for name in books:
+        for name in [b for b in books if b != "colab_tft.ipynb"]:
             n = nbf.read(NB / name, as_version=4)
             ExecutePreprocessor(timeout=600, kernel_name="python3").preprocess(n, {"metadata": {"path": str(NB)}})
             nbf.write(n, NB / name)

@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomía de una Falla · Parte II</title>
+<meta name="description" content="Laboratorio II · TP2. EDA del dataset NASA N-CMAPSS y predicción de la vida útil remanente de motores turbofan con intervalos de incertidumbre (CatBoost, Temporal Fusion Transformer y Adaptive Conformal Prediction).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- ═══ GENERADO AUTOMÁTICAMENTE ═════════════════════════════════════════════
+     Este archivo lo arma src/ncmapss/report/build.py con los resultados de
+     outputs/{{ mode }}/*.json. No editar a mano: correr
+         python scripts/run_all.py --only report
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script>{{ plotly_js }}</script>
+<script>window.REPORT = {{ report_json }};</script>
+<style>
+{{ css }}
+</style>
+</head>
+<body>
+<div class="bg-mesh"></div><div class="bg-grid"></div>
+{{ svg_defs }}
+
+<!-- ═══ NAVEGACIÓN ═════════════════════════════════════════════════════════════ -->
+<header class="topbar" id="topbar">
+  <div class="brand"><span class="dot"></span>N-CMAPSS · LAB II · TP2 · PARTE II</div>
+  <nav class="chapnav" id="chapnav">
+    <a href="#c0">00 INTRO</a><a href="#c1">01 DATOS</a><a href="#c2">02 VUELO</a><a href="#c3">03 CONTEXTO</a><a href="#c4">04 DESGASTE</a>
+    <a href="#c5">05 SEÑALES</a><a href="#c6">06 VIDA</a><a href="#c7">07 MÉTODO</a><a href="#c8">08 RUL</a><a href="#c9">09 CERTEZA</a><a href="#c10">10 FUTURO</a>
+  </nav>
+</header>
+<aside class="altimeter" id="altimeter" aria-hidden="true">
+  <div class="read">ALT<b id="altRead">0</b>ft</div>
+  <div class="tape" id="tape"><div class="bug" id="bug"><svg viewBox="0 0 20 20" width="20" height="20"><path d="M2 10 L14 4 L14 16 Z" fill="var(--hud)"/></svg></div></div>
+  <div class="read" id="phaseRead">TAXI</div>
+</aside>
+
+<!-- ═══ PORTADA ════════════════════════════════════════════════════════════════ -->
+<section class="hero" id="top">
+  <canvas id="particles" aria-hidden="true"></canvas>
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow reveal">Laboratorio II · TP2 · Parte II</div>
+      <h1 class="reveal d1">Anatomía<br><span class="hot">de una falla</span></h1>
+      <div class="sub reveal d1">Cuánto le queda y con qué certeza</div>
+      <p class="lead reveal d2">Continuamos con los <b><span data-kpi="n_units">—</span> motores</b> de NASA N-CMAPSS: un análisis exploratorio
+        completo y un modelo que predice <b>cuántos vuelos le quedan a cada motor</b> con un intervalo de incertidumbre que
+        controla el riesgo de <b>sobreestimar</b> su vida útil.</p>
+      <div class="team-label reveal d2">INTEGRANTES</div>
+      <div class="team reveal d3">{% for p in team %}<span>{{ p }}</span>{% endfor %}</div>
+    </div>
+    <div class="instrument reveal d2">
+      <div class="tag"><span>MOTOR TURBOFAN · CORTE LONGITUDINAL</span><span>FLUJO →</span></div>
+      {{ hero_engine }}
+      <div class="hud-strip" aria-label="Lecturas de un vuelo real del dataset">
+        <div class="hud-cell"><div class="k">ALTITUD</div><div class="v"><span id="hAlt">—</span><small>ft</small></div></div>
+        <div class="hud-cell"><div class="k">MACH</div><div class="v"><span id="hMach">—</span></div></div>
+        <div class="hud-cell"><div class="k">POTENCIA</div><div class="v"><span id="hTra">—</span><small>%</small></div></div>
+        <div class="hud-cell hot"><div class="k">T48 TURBINA</div><div class="v"><span id="hT48">—</span><small>°R</small></div></div>
+        <div class="hud-cell"><div class="k">TIEMPO</div><div class="v"><span id="hT">—</span><small>s</small></div></div>
+      </div>
+      <div class="hud-note">Lecturas reales de <span id="hLabel">un vuelo del dataset</span>.</div>
+    </div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+</section>
+
+<main>
+<!-- ═══ 00 · INTRODUCCIÓN ══════════════════════════════════════════════════════ -->
+<section class="chapter" id="c0">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="PRE-VUELO">00</div>
+    <div><div class="chap-kicker">Introducción</div><h2 class="split">De la exploración a la predicción</h2></div></div>
+  <div class="prose reveal">
+    <p>En la Parte I describimos el dataset. Esta segunda parte responde a la devolución del trabajo: ordena el análisis en un
+      <b>pipeline reproducible</b>, construye un <b>EDA completo</b> en el que cada número se calcula desde los datos, y desarrolla
+      la línea de investigación elegida: <b>predecir la vida útil remanente (RUL) con incertidumbre</b>.</p>
+    <p>La pregunta práctica de mantenimiento no es sólo "¿cuántos vuelos le quedan?", sino <b>"¿hasta cuándo puedo esperar
+      sin arriesgarme a que falle antes?"</b>. Por eso cada predicción viene con un intervalo, y el intervalo se construye
+      para que el RUL real casi nunca quede por debajo de su cota inferior.</p>
+  </div>
+
+  <h3 class="reveal">Qué cambió respecto de la Parte I</h3>
+  <div class="answers">
+    <div class="glass answer reveal"><div class="q">Orden</div><h4>Un recorrido y un pipeline</h4>
+      <p>Datos → EDA → decisiones → modelos → incertidumbre → informe. Cada etapa es un módulo de <code>src/</code> y se corre con <code>scripts/run_all.py</code>.</p></div>
+    <div class="glass answer reveal d1"><div class="q">EDA real</div><h4>Calidad, perfiles, señales y decisiones</h4>
+      <p>Faltantes, outliers y verificaciones de consistencia sobre todos los segundos; perfiles de vuelo; evolución de los sensores; y qué decisión de modelado justifica cada hallazgo.</p></div>
+    <div class="glass answer reveal d2"><div class="q">Nada hardcodeado</div><h4>Todo sale de los datos</h4>
+      <p>Cifras, tablas, gráficos y lecturas se calculan en Python y se inyectan acá. Parámetros en <code>config.yaml</code>. Si cambian los datos, cambia el informe.</p></div>
+  </div>
+
+  <h3 class="reveal">Cómo funciona un motor turbofan</h3>
+  <div class="glass panel reveal">
+    <div class="steps">
+      <svg class="schem" id="engSteps" viewBox="0 0 640 240" width="100%" role="img" aria-label="Partes de un motor turbofan"></svg>
+      <div class="step-list" id="stepList">
+        <div class="step" data-s="1" style="--sc:var(--c-lpc)"><div class="n">1</div><div><h4>Fan</h4><p>Aspira el aire. La mayor parte rodea el motor y genera empuje.</p></div></div>
+        <div class="step" data-s="2" style="--sc:var(--c-hpc)"><div class="n">2</div><div><h4>Compresores (LPC y HPC)</h4><p>El resto entra al núcleo y se comprime en dos etapas.</p></div></div>
+        <div class="step" data-s="3" style="--sc:var(--amber)"><div class="n">3</div><div><h4>Combustión</h4><p>El aire comprimido se quema con combustible: la zona más caliente.</p></div></div>
+        <div class="step" data-s="4" style="--sc:var(--orange)"><div class="n">4</div><div><h4>Turbinas (HPT y LPT)</h4><p>Los gases mueven las turbinas, que hacen girar compresores y fan.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="reveal">Las tres líneas de investigación</h3>
+  <div class="lines">
+    <div class="glass line-card main reveal"><div class="k">LÍNEA 1 · LA QUE DESARROLLAMOS</div><h4>Vida útil con incertidumbre</h4>
+      <p>Predecir cuántos vuelos le quedan al motor con intervalos calibrados, controlando el riesgo de sobreestimar.</p>
+      <div class="tags"><span>CatBoost</span><span>Temporal Fusion Transformer</span><span>Adaptive Conformal Prediction</span></div>
+      <div class="status">CAPÍTULOS 07 · 08 · 09</div></div>
+    <div class="glass line-card reveal d1"><div class="k">LÍNEA 2 · EXPERIMENTO EXPLORATORIO</div><h4>Generalizar entre tipos de vuelo</h4>
+      <p>¿Un modelo entrenado con vuelos cortos estima bien la degradación en vuelos medianos y largos?</p>
+      <div class="tags"><span>DANN</span><span>PatchTST</span><span>Transfer Learning</span></div>
+      <div class="status">CAPÍTULO 10</div></div>
+    <div class="glass line-card reveal d2"><div class="k">LÍNEA 3 · EXPERIMENTO EXPLORATORIO</div><h4>Detección temprana del desgaste</h4>
+      <p>Identificar el inicio de la degradación con los sensores, antes de una caída significativa de rendimiento.</p>
+      <div class="tags"><span>Self-Supervised Transformers</span><span>Masked Autoencoders</span><span>Change Point Detection</span></div>
+      <div class="status">CAPÍTULO 10</div></div>
+  </div>
+  <div class="glass panel plan reveal">
+    <div class="label">Recorrido del informe</div>
+    <svg viewBox="0 0 1000 170" role="img" aria-label="Capítulos del informe" id="planSvg"></svg>
+  </div>
+</section>
+
+<!-- ═══ 01 · DATASET ═══════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c1">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="PRE-VUELO">01</div>
+    <div><div class="chap-kicker">El dataset</div><h2 class="split">Cómo está armado</h2></div></div>
+  <div class="prose reveal"><p><b><span data-kpi="rows_total_fmt">—</span> registros</b>, organizados en cinco niveles: de la flota completa hasta cada segundo de vuelo.</p></div>
+  <div class="hier reveal" id="hier"></div>
+
+  <h3 class="reveal">Un registro por dentro</h3>
+  <div class="prose reveal"><p>Un segundo de vuelo (<span id="exLabel"></span>): los valores de los seis bloques.</p></div>
+  <div class="row-wrap reveal" id="exRow"></div>
+
+  <h3 class="reveal">Los seis bloques de variables</h3>
+  <div class="vars" id="vars"></div>
+
+  <h3 class="reveal">Qué significan los nombres de los sensores</h3>
+  <div class="prose reveal"><p>La letra dice qué se mide (<b>T</b> temperatura, <b>P</b> presión, <b>W</b> flujo, <b>N</b> giro) y el número, en qué
+    <b>estación</b> del recorrido del aire. <b>T48</b> = temperatura a la salida de la turbina de alta. Pasá el cursor por las estaciones.</p></div>
+  <div class="glass panel stations reveal">
+    <svg class="schem mono" id="stationSvg" viewBox="0 0 1000 250" role="img" aria-label="Estaciones del motor y sensores asociados"><g id="stationBody"></g><g id="stationNodes"></g></svg>
+    <div class="st-panel" id="stPanel" aria-live="polite"></div>
+  </div>
+
+  <h3 class="reveal">Los escenarios de falla</h3>
+  <div class="prose reveal"><p>Cada subconjunto daña componentes distintos y se divide en <b>desarrollo</b> (entrenar) y <b>prueba</b> (motores nuevos para evaluar).</p></div>
+  <div class="glass panel reveal" style="overflow-x:auto"><table class="scen" id="scenTable"></table></div>
+
+  <div class="grid2">
+    <div class="glass figure reveal" data-fig="sizes">
+      <div class="fig-code">FIG. 01 · VOLUMEN</div><div class="fig-title">Registros por subconjunto</div>
+      <div class="fig-sub">Millones de segundos de vuelo, por partición.</div>
+      <div class="plot short"></div>
+    </div>
+    <div class="glass figure reveal d1" data-fig="quality">
+      <div class="fig-code">FIG. 02 · VARIACIÓN</div><div class="fig-title">Cuánto se mueve cada variable</div>
+      <div class="fig-sub">Desvío relativo a la media, con todos los segundos (escala log).</div>
+      <div class="plot short"></div>
+    </div>
+  </div>
+
+  <h3 class="reveal">Calidad de los datos: faltantes, rangos y consistencia</h3>
+  <div class="prose reveal"><p>Antes de analizar, verificamos <b>todos los segundos</b> del dataset (no una muestra) contra reglas que tienen que cumplirse.</p></div>
+  <div class="glass panel reveal"><div class="checks" id="checks"></div></div>
+</section>
+
+<!-- ═══ 02 · VUELO ═════════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c2">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="DESPEGUE">02</div>
+    <div><div class="chap-kicker">La operación</div><h2 class="split">Cómo es un vuelo</h2></div></div>
+  <div class="prose reveal"><p>Cada ciclo es un <b>vuelo completo</b> con condiciones que cambian segundo a segundo. El avión avanza a medida que bajás.</p></div>
+  <div class="glass panel flightpath reveal" id="flightpath">
+    <div class="label">Trayectoria real · <span id="fpLabel"></span></div>
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Altitud de un vuelo real del dataset">
+      <g id="fpGrid"></g><path class="fp-area" id="fpArea"/><path class="fp-path" id="fpPath"/><g id="fpPhases"></g>
+      <g id="fpPlane" class="fp-plane"><path d="M-14 0 L10 -2 L14 0 L10 2 Z M-2 -1 L-8 -10 L-4 -10 L4 -1 Z M-2 1 L-8 10 L-4 10 L4 1 Z M-12 -1 L-15 -5 L-13 -5 L-9 -1 Z" fill="var(--navy)"/></g>
+      <text class="fp-readout" id="fpRead" x="990" y="20" text-anchor="end"></text>
+    </svg>
+  </div>
+  <div class="glass figure reveal" data-fig="profile">
+    <div class="fig-code">FIG. 03 · PERFIL DE VUELO</div><div class="fig-title">Condiciones de vuelo y respuesta del motor</div>
+    <div class="fig-sub">Las cuatro condiciones de vuelo y, abajo, la temperatura de turbina (T48).</div>
+    <div class="howto">Mismo eje de tiempo: cada cambio de potencia se refleja en T48.</div>
+    <div class="plot tall"></div>
+  </div>
+  <div class="grid2">
+    <div class="glass figure reveal" data-fig="envelope">
+      <div class="fig-code">FIG. 04 · ENVOLVENTE</div><div class="fig-title">Dónde pasan el tiempo los motores</div>
+      <div class="fig-sub">Segundos en cada combinación de altitud y velocidad.</div>
+      <div class="howto">Celda más oscura = más tiempo.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure reveal d1" data-fig="flight_class">
+      <div class="fig-code">FIG. 05 · CLASES DE VUELO</div><div class="fig-title">Vuelos cortos, medianos y largos</div>
+      <div class="fig-sub">Duración según la clase de vuelo.</div>
+      <div class="howto">Forma más ancha = más vuelos con esa duración.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass figure reveal" data-fig="flight_shapes">
+    <div class="fig-code">FIG. 06 · PERFIL TÍPICO</div><div class="fig-title">La forma de un vuelo de cada clase</div>
+    <div class="fig-sub">Mediana de altitud y potencia a lo largo del vuelo (0 % = inicio del registro, 100 % = final).</div>
+    <div class="howto">Las clases difieren en cuánto tiempo pasan en crucero y a qué altura.</div>
+    <div class="plot"></div>
+  </div>
+</section>
+
+<!-- ═══ 03 · CONTEXTO ══════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c3">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="ASCENSO">03</div>
+    <div><div class="chap-kicker">El contexto</div><h2 class="split">Por qué cuesta ver el desgaste</h2></div></div>
+  <div class="prose reveal"><p>T48 varía <b data-kpi="t48_within">—</b> dentro de un vuelo típico, pero en toda la vida del motor, a igual condición de vuelo,
+    sube sólo <b data-kpi="t48_drift">—</b>. El desgaste queda tapado por la variación del propio vuelo.</p></div>
+  <div class="sn" id="snCards"></div>
+  <div class="grid2">
+    <div class="glass figure reveal" data-fig="context">
+      <div class="fig-code">FIG. 07 · POTENCIA Y TEMPERATURA</div><div class="fig-title">La temperatura depende de cómo se vuela</div>
+      <div class="fig-sub">T48 contra potencia (TRA), coloreado por altitud.</div>
+      <div class="howto">Cada punto es un segundo.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure reveal d1" data-fig="variance_explained">
+      <div class="fig-code">FIG. 08 · VARIACIÓN EXPLICADA</div><div class="fig-title">Lo que el vuelo no explica</div>
+      <div class="fig-sub">Parte de cada sensor que no predicen las 4 condiciones de vuelo, en motores sanos no vistos.</div>
+      <div class="howto">Barra corta = el sensor depende casi todo del vuelo.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass figure reveal" data-fig="corr">
+    <div class="fig-code">FIG. 09 · CORRELACIONES</div><div class="fig-title">Variables que se mueven juntas</div>
+    <div class="fig-sub">Pearson entre todas las variables, agrupadas por similitud.</div>
+    <div class="howto">Rojo = suben juntas · azul = opuestas · gris = sin relación.</div>
+    <div class="plot tall"></div>
+  </div>
+
+  <h3 class="reveal">Cómo separamos el vuelo del desgaste</h3>
+  <div class="prose reveal"><p>Un <b>modelo de motor sano</b> (una red neuronal chica), entrenado sólo con vuelos sanos de los motores de entrenamiento,
+    predice cada sensor a partir de las condiciones de vuelo. Lo medido menos lo esperado es el <b>residuo</b>, la base del resto del análisis.</p></div>
+  <div class="glass panel reveal">
+    <div class="equation">
+      <div class="eq-box"><div class="k">MEDIDO</div><h4>Lo que marca el sensor</h4><p>Vuelo + desgaste.</p>
+        <svg viewBox="0 0 200 60" preserveAspectRatio="none"><path d="M0 40 Q20 10 40 30 T80 25 T120 35 T160 15 T200 22" fill="none" stroke="#8d99ae" stroke-width="2.4"/></svg></div>
+      <div class="op">−</div>
+      <div class="eq-box"><div class="k">ESPERADO</div><h4>Un motor sano</h4><p>Predicho por el modelo.</p>
+        <svg viewBox="0 0 200 60" preserveAspectRatio="none"><path d="M0 46 Q20 16 40 36 T80 31 T120 41 T160 21 T200 28" fill="none" stroke="#0077b6" stroke-width="2.4"/></svg></div>
+      <div class="op">=</div>
+      <div class="eq-box"><div class="k">RESIDUO</div><h4>El desgaste</h4><p>Cerca de cero si está sano; crece con el desgaste.</p>
+        <svg viewBox="0 0 200 60" preserveAspectRatio="none"><line x1="0" y1="48" x2="200" y2="48" stroke="#c9d4e1" stroke-dasharray="3 3"/><path d="M0 48 L80 47 Q130 45 160 34 T200 8" fill="none" stroke="#f3722c" stroke-width="2.8" filter="url(#glow)"/></svg></div>
+    </div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="normalization">
+    <div class="fig-code">FIG. 10 · ANTES Y DESPUÉS</div><div class="fig-title">El mismo motor, con y sin el efecto del vuelo</div>
+    <div class="fig-sub">T48 por vuelo: arriba medido, abajo residuo en desvíos de un motor sano (z).</div>
+    <div class="howto">La línea vertical marca el inicio de la degradación anormal.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure reveal" data-fig="profiles">
+    <div class="fig-code">FIG. 11 · PERFILES REPETIDOS</div><div class="fig-title">Los vuelos se repiten</div>
+    <div class="fig-sub">Parte de la variación del residuo entre vuelos sanos que se explica por el perfil de vuelo utilizado.</div>
+    <div class="howto">Barra larga = el residuo de ese sensor arrastra un sesgo propio de cada perfil.</div>
+    <div class="plot"></div>
+  </div>
+</section>
+
+<!-- ═══ 04 · DESGASTE ══════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c4">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="CRUCERO">04</div>
+    <div><div class="chap-kicker">El desgaste</div><h2 class="split">Qué parte del motor se desgasta</h2></div></div>
+  <div class="prose reveal"><p>El simulador reduce diez <b>parámetros de salud</b> (eficiencia y flujo de cada componente). No se miden en la realidad,
+    pero acá muestran qué se daña en cada escenario. Elegí un subconjunto.</p></div>
+  <div class="glass panel anatomy reveal">
+    <div>
+      <div class="ds-pills" id="dsPills" role="group" aria-label="Subconjuntos"></div>
+      <svg class="schem mono" id="anatSvg" viewBox="0 0 640 240" width="100%" role="img" aria-label="Componentes afectados por subconjunto"></svg>
+    </div>
+    <div class="ds-card" id="dsCard" aria-live="polite"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="health_heat">
+    <div class="fig-code">FIG. 12 · PÉRDIDA POR COMPONENTE</div><div class="fig-title">Cuánto se desgasta cada componente</div>
+    <div class="fig-sub">Pérdida media en el último vuelo de cada motor, en %.</div>
+    <div class="howto">Fila = subconjunto · columna = parámetro · vacío = no se desgasta.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="health_traj">
+    <div class="fig-code">FIG. 13 · EVOLUCIÓN</div><div class="fig-title">Cómo avanza el desgaste vuelo a vuelo</div>
+    <div class="fig-sub">Parámetro más afectado del subconjunto, una línea por motor. Usá el selector.</div>
+    <div class="howto">Azul = etapa sana · naranja = degradación anormal.</div>
+    <div class="plot tall"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="hs">
+    <div class="fig-code">FIG. 14 · ETAPAS DE VIDA</div><div class="fig-title">Cuánto tiempo pasa cada motor sano y degradado</div>
+    <div class="fig-sub">Una barra por motor (D = desarrollo, P = prueba).</div>
+    <div class="howto">Tramo azul = vuelos sanos · naranja = vuelos degradados hasta la falla.</div>
+    <div class="plot tall"></div>
+  </div>
+</section>
+
+<!-- ═══ 05 · SEÑALES ═══════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c5">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="CRUCERO">05</div>
+    <div><div class="chap-kicker">Las señales</div><h2 class="split">Qué sensores anticipan la falla</h2></div></div>
+  <div class="prose reveal"><p>En un motor real sólo hay sensores. La pregunta práctica: <b>cuáles cambian a medida que se acerca la falla</b>, ya sin el efecto del vuelo.</p></div>
+  <div class="glass figure hot reveal" data-fig="rul_corr">
+    <div class="fig-code">FIG. 15 · RELACIÓN CON LA FALLA</div><div class="fig-title">Qué sensores reaccionan en cada escenario</div>
+    <div class="fig-sub">Spearman entre cada residuo y la cercanía a la falla.</div>
+    <div class="howto">Rojo = sube al acercarse la falla · azul = baja · * = virtual.</div>
+    <div class="plot tall"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="sensor_trends">
+    <div class="fig-code">FIG. 16 · CUENTA REGRESIVA</div><div class="fig-title">Los mejores sensores, camino a la falla</div>
+    <div class="fig-sub">Residuo de los cuatro sensores físicos más informativos en los últimos vuelos.</div>
+    <div class="howto">Línea = mediana · banda = mitad central de los motores.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="life_evolution">
+    <div class="fig-code">FIG. 17 · A LO LARGO DE LA VIDA</div><div class="fig-title">Cómo evoluciona cada sensor en cada escenario</div>
+    <div class="fig-sub">Residuo mediano según el avance de la vida del motor. Elegí el sensor con el selector.</div>
+    <div class="howto">Una línea por subconjunto · 0 % = primer vuelo · 100 % = falla.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="grid2">
+    <div class="glass figure reveal" data-fig="outliers">
+      <div class="fig-code">FIG. 18 · VALORES EXTREMOS</div><div class="fig-title">¿Errores o desgaste?</div>
+      <div class="fig-sub">Vuelos con residuo extremo, en la etapa sana y en la degradada.</div>
+      <div class="howto">Si los extremos se concentran en la etapa degradada, son señal y no ruido.</div>
+      <div class="plot short"></div>
+    </div>
+    <div class="glass figure hot reveal d1" data-fig="pca">
+      <div class="fig-code">FIG. 19 · MAPA DE ESTADOS</div><div class="fig-title">Cada escenario se aleja de la zona sana a su manera</div>
+      <div class="fig-sub">Los 14 residuos resumidos en dos ejes (PCA). Filtrá por subconjunto.</div>
+      <div class="howto">Azul = mucha vida · rojo = cerca de la falla · cruces = final de cada escenario.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 06 · VIDA ÚTIL ═════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c6">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="CRUCERO">06</div>
+    <div><div class="chap-kicker">La vida útil</div><h2 class="split">Cuánto dura un motor</h2></div></div>
+  <div class="prose reveal"><p>Antes de predecir el <b>RUL</b> conviene ver cuánto viven los motores y de qué depende.</p></div>
+  <div class="grid2">
+    <div class="glass figure hot reveal" data-fig="lifespan">
+      <div class="fig-code">FIG. 20 · VIDA TOTAL</div><div class="fig-title">Vuelos hasta la falla</div>
+      <div class="fig-sub">Cada punto es un motor.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure hot reveal d1" data-fig="life_vs_fc">
+      <div class="fig-code">FIG. 21 · TIPO DE VUELO</div><div class="fig-title">Vuelos contra horas de vuelo</div>
+      <div class="fig-sub">Coloreado por clase de vuelo.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="rul_dist">
+    <div class="fig-code">FIG. 22 · DISTRIBUCIÓN DEL RUL</div><div class="fig-title">Cuántos vuelos hay para cada valor de RUL</div>
+    <div class="fig-sub">Desarrollo y prueba.</div>
+    <div class="plot short"></div>
+  </div>
+
+  <h3 class="reveal">Qué nos dejó el EDA</h3>
+  <div class="takeaways" id="takeaways"></div>
+  <h3 class="reveal">Del EDA al modelo: cada decisión tiene un porqué</h3>
+  <div class="decisions" id="decisions"></div>
+</section>
+
+<!-- ═══ 07 · METODOLOGÍA ═══════════════════════════════════════════════════════ -->
+<section class="chapter" id="c7">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="DESCENSO">07</div>
+    <div><div class="chap-kicker">Metodología · Línea 1</div><h2 class="split">Cómo predecimos sin hacer trampa</h2></div></div>
+  <div class="prose reveal">
+    <p>El objetivo: para cada vuelo de un motor, estimar el RUL y un intervalo <b>[cota inferior, cota superior]</b> usando
+      <b>sólo lo observado hasta ese vuelo</b>. Ningún dato de un motor de prueba toca el entrenamiento ni la calibración.</p>
+  </div>
+  <div class="pipeline">
+    <div class="pstep reveal"><div class="n">1</div><h5>Residuos</h5><p>Medido − motor sano, resumido por vuelo.</p></div>
+    <div class="pstep reveal d1"><div class="n">2</div><h5>Variables</h5><p>Residuo menos línea base del motor, medias y pendientes de los últimos vuelos, clase y condiciones del vuelo.</p></div>
+    <div class="pstep reveal d2"><div class="n">3</div><h5>Modelos</h5><p>CatBoost y TFT predicen los cuantiles 5 %, 50 % y 95 % del RUL.</p></div>
+    <div class="pstep hot reveal d3"><div class="n">4</div><h5>Conformal</h5><p>Se corrigen los cuantiles con el error en motores de calibración, por tramo de RUL predicho.</p></div>
+    <div class="pstep hot reveal d3"><div class="n">5</div><h5>Adaptación</h5><p>ACI reajusta el intervalo cada vez que un motor de la flota falla y se conoce su RUL real.</p></div>
+  </div>
+
+  <h3 class="reveal">Partición por motor, sin fuga</h3>
+  <div class="prose reveal"><p>Los motores de <b>prueba</b> son los oficiales de NASA. Los de desarrollo se reparten, dentro de cada subconjunto, en
+    entrenamiento, validación (para detener el entrenamiento a tiempo) y calibración (para los intervalos). Los vuelos de un mismo motor nunca se separan.</p></div>
+  <div class="glass panel reveal tbl-wrap" id="splitTable"></div>
+
+  <h3 class="reveal">Los dos modelos</h3>
+  <div class="models" id="models"></div>
+  <div class="glass panel reveal">
+    <div class="label">Búsqueda de hiperparámetros del TFT (elegida por pérdida en validación, nunca en prueba)</div>
+    <div class="tbl-wrap" id="searchTable"></div>
+  </div>
+
+  <h3 class="reveal">Intervalos que no prometen de más</h3>
+  <div class="brief">
+    <div class="glass brief-card reveal"><div class="q">Paso 1</div><h4>Cuantiles del modelo</h4>
+      <p>Cada modelo da su propio rango 5 %–95 %. Sin calibrar, nada garantiza que el RUL real caiga adentro el 90 % de las veces.</p></div>
+    <div class="glass brief-card reveal d1"><div class="q">Paso 2</div><h4>CQR asimétrico</h4>
+      <p>Se mide cuánto se equivocó cada cota en motores de calibración y se corrigen por separado:</p>
+      <div class="formula">L = q05 − Q<sub>1−α↑</sub>(q05 − y) · U = q95 + Q<sub>1−α↓</sub>(y − q95)</div></div>
+    <div class="glass brief-card reveal d2"><div class="q">Paso 3</div><h4>Por tramos de RUL</h4>
+      <p>La corrección se calcula aparte para cada tramo de RUL predicho, así la cobertura es pareja cerca de la falla.</p></div>
+    <div class="glass brief-card hot reveal d3"><div class="q">Paso 4 · asimetría</div><h4>ACI de flota</h4>
+      <p>Tolerancia de <b data-kpi="r_alpha_over">—</b> a sobreestimar y <b data-kpi="r_alpha_under">—</b> a subestimar. Cuando un motor falla, α se actualiza:</p>
+      <div class="formula">α<sub>k+1</sub> = α<sub>k</sub> + γ · (α* − error del motor k)</div></div>
+  </div>
+  <div class="glass brief-card reveal" style="margin-top:14px">
+    <div class="q">Cómo se evalúa</div><h4>Error, riesgo y calidad del intervalo</h4>
+    <p><b>RMSE</b> y <b>MAE</b> (vuelos de error), el <b>score asimétrico de NASA</b> (penaliza más sobreestimar), la <b>cobertura</b> y el <b>ancho</b>
+      del intervalo, y el <b>% de sobreestimación</b>: de la mediana y de la cota inferior.</p>
+    <div class="formula">s = exp(−d/13) − 1 si d &lt; 0 · exp(d/10) − 1 si d ≥ 0 · d = predicho − real</div>
+  </div>
+</section>
+
+<!-- ═══ 08 · RESULTADOS ════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c8">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="DESCENSO">08</div>
+    <div><div class="chap-kicker">Resultados · Línea 1</div><h2 class="split">Cuántos vuelos le quedan</h2></div></div>
+  <div class="prose reveal"><p>Todo lo que sigue se mide en los <b>motores de prueba oficiales</b>, que ningún modelo vio. Ambos modelos se evalúan sobre los mismos vuelos.</p></div>
+  <div class="glass panel reveal">
+    <div class="label">Métricas en prueba · fila destacada = modelo principal con ACI</div>
+    <div class="tbl-wrap" id="metricsTable"></div>
+  </div>
+  <div class="grid2">
+    <div class="glass figure hot reveal" data-fig="pred_vs_true">
+      <div class="fig-code">FIG. 23 · PREDICHO VS. REAL</div><div class="fig-title">Qué tan cerca queda la predicción</div>
+      <div class="fig-sub">Mediana predicha contra RUL real, cada punto es un vuelo de prueba.</div>
+      <div class="howto">Sobre la diagonal = sobreestimación (zona sombreada).</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure reveal d1" data-fig="error_by_rul">
+      <div class="fig-code">FIG. 24 · ERROR POR TRAMO</div><div class="fig-title">Dónde se equivoca más</div>
+      <div class="fig-sub">RMSE según cuánto le falta realmente al motor.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="engine_examples">
+    <div class="fig-code">FIG. 25 · MOTOR POR MOTOR</div><div class="fig-title">La predicción vuelo a vuelo, con su intervalo</div>
+    <div class="fig-sub">Motores de prueba elegidos al azar. Usá el selector.</div>
+    <div class="howto">Banda = intervalo · línea azul = predicción · línea naranja = RUL real.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure reveal" data-fig="feature_importance">
+    <div class="fig-code">FIG. 26 · VARIABLES</div><div class="fig-title">En qué se fija cada modelo</div>
+    <div class="fig-sub">Las 15 variables más importantes (hacé clic en la leyenda para ver el otro modelo).</div>
+    <div class="plot tall"></div>
+  </div>
+</section>
+
+<!-- ═══ 09 · INCERTIDUMBRE ═════════════════════════════════════════════════════ -->
+<section class="chapter" id="c9">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="APROXIMACIÓN">09</div>
+    <div><div class="chap-kicker">Discusión de la incertidumbre</div><h2 class="split">Con qué certeza</h2></div></div>
+  <div class="sn">
+    <div class="glass sn-card reveal"><div class="k">COBERTURA SIN CALIBRAR</div><div class="big" style="color:var(--ti)" data-kpi="r_coverage_raw">—</div>
+      <div class="t">de los vuelos de prueba con el RUL real dentro de los cuantiles 5 %–95 % del modelo principal.</div></div>
+    <div class="glass sn-card reveal d1"><div class="k">COBERTURA CON ACI</div><div class="big" style="color:var(--hud)" data-kpi="r_coverage_aci">—</div>
+      <div class="t">con el intervalo conformal adaptativo (objetivo <span data-kpi="r_target">—</span>), ancho medio <span data-kpi="r_width_aci">—</span> vuelos.</div></div>
+    <div class="glass sn-card reveal d2"><div class="k">SOBREESTIMACIÓN CONTROLADA</div><div class="big" style="color:var(--orange)" data-kpi="r_miss_over_aci">—</div>
+      <div class="t">de los vuelos con la cota inferior por encima del RUL real, contra <span data-kpi="r_over_point">—</span> si se usara la mediana.</div></div>
+  </div>
+  <div class="glass figure hot reveal" data-fig="coverage_by_rul">
+    <div class="fig-code">FIG. 27 · COBERTURA POR TRAMO</div><div class="fig-title">La cobertura cerca y lejos de la falla</div>
+    <div class="fig-sub">Porcentaje de vuelos con el RUL real dentro del intervalo, por tramo de RUL real.</div>
+    <div class="howto">Línea punteada = objetivo. Lo que más importa es el tramo cercano a la falla.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass figure reveal" data-fig="aci_trace">
+    <div class="fig-code">FIG. 28 · ADAPTACIÓN</div><div class="fig-title">Cómo aprende el ACI de cada motor que falla</div>
+    <div class="fig-sub">Tolerancia a la sobreestimación a medida que los motores de prueba llegan al final de su vida.</div>
+    <div class="howto">Línea roja = tolerancia objetivo · línea punteada = sobreestimación acumulada.</div>
+    <div class="plot short"></div>
+  </div>
+  <div class="glass panel prose discussion reveal" id="discussion" style="max-width:none"></div>
+</section>
+
+<!-- ═══ 10 · LÍNEAS FUTURAS ════════════════════════════════════════════════════ -->
+<section class="chapter" id="c10">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="ATERRIZAJE">10</div>
+    <div><div class="chap-kicker">Líneas 2 y 3 · trabajo futuro</div><h2 class="split">Lo que viene</h2></div></div>
+  <div class="prose reveal"><p>Las otras dos líneas propuestas quedan como trabajo futuro. Para fundamentarlas hicimos un <b>experimento simple de cada una</b> con los datos reales.</p></div>
+
+  <h3 class="reveal">Línea 2 · ¿Generaliza de vuelos cortos a largos?</h3>
+  <div class="glass figure reveal" data-fig="line2">
+    <div class="fig-code">FIG. 29 · TRANSFERENCIA ENTRE TIPOS DE VUELO</div><div class="fig-title">Entrenar con vuelos cortos, evaluar en todos</div>
+    <div class="fig-sub">RMSE de CatBoost en motores de prueba de cada clase, según con qué se entrenó.</div>
+    <div class="howto">C es la transferencia estricta: nada del pipeline vio vuelos medianos o largos.</div>
+    <div class="plot"></div>
+  </div>
+  <div class="glass panel reveal tbl-wrap" id="line2Table"></div>
+
+  <h3 class="reveal">Línea 3 · ¿Se puede ver el desgaste antes?</h3>
+  <div class="grid2">
+    <div class="glass figure hot reveal" data-fig="line3_example">
+      <div class="fig-code">FIG. 30 · ÍNDICE DE SALUD</div><div class="fig-title">Un motor de prueba y sus alarmas</div>
+      <div class="fig-sub">Índice de salud multivariado y estadístico CUSUM.</div>
+      <div class="plot"></div>
+    </div>
+    <div class="glass figure hot reveal d1" data-fig="line3_delay">
+      <div class="fig-code">FIG. 31 · DEMORA DE DETECCIÓN</div><div class="fig-title">Cuándo da la alarma cada detector</div>
+      <div class="fig-sub">Vuelo de alarma menos vuelo de inicio real de la degradación, en motores de prueba.</div>
+      <div class="plot"></div>
+    </div>
+  </div>
+  <div class="glass panel reveal tbl-wrap" id="line3Table"></div>
+  <div class="glass panel prose discussion reveal" id="futureText" style="max-width:none"></div>
+</section>
+
+<!-- ═══ 11 · CIERRE ════════════════════════════════════════════════════════════ -->
+<section class="chapter" id="c11">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="EN TIERRA">11</div>
+    <div><div class="chap-kicker">Conclusiones y limitaciones</div><h2 class="split">Qué aprendimos</h2></div></div>
+  <div class="takeaways" id="conclusions"></div>
+  <h3 class="reveal">Limitaciones</h3>
+  <div class="limits">
+    <div class="glass limit reveal"><b>Datos simulados.</b> C-MAPSS es un modelo físico alimentado con vuelos reales: las conclusiones habría que validarlas con datos de operación.</div>
+    <div class="glass limit reveal d1"><b>Archivo dañado.</b> <span data-kpi="bad_ds">—</span> viene truncado en Kaggle y quedó afuera; el pipeline lo detecta y lo informa.</div>
+    <div class="glass limit reveal"><b>Pocos motores.</b> Con <span data-kpi="n_units">—</span> motores, la calibración usa pocas unidades y la garantía conformal es aproximada: los vuelos de un mismo motor no son independientes.</div>
+    <div class="glass limit reveal d1"><b>Retroalimentación demorada.</b> El RUL real sólo se conoce cuando el motor falla: el ACI aprende a nivel flota y su orden de llegada es simulado.</div>
+    <div class="glass limit reveal"><b>Resumen por vuelo.</b> Trabajamos con promedios de cada vuelo; modelos sobre la señal segundo a segundo podrían captar transitorios que acá se pierden.</div>
+    <div class="glass limit reveal d1"><b>Perfiles repetidos.</b> Los motores de prueba vuelan perfiles que también aparecen en entrenamiento; en otra flota con rutas nuevas el desempeño podría ser menor (Línea 2).</div>
+  </div>
+  <h3 class="reveal">Cómo reproducirlo</h3>
+  <div class="repro reveal"><span class="c"># 1) datos de Kaggle en NCMAPSS_DATA_DIR (ver README) · 2) todo el pipeline</span><br>python scripts/run_all.py<br><span class="c"># versión rápida para probar en minutos</span><br>python scripts/run_all.py --sample<br><span class="c"># sólo regenerar este informe con los resultados guardados</span><br>python scripts/run_all.py --only report</div>
+</section>
+</main>
+
+<!-- ═══ PIE ════════════════════════════════════════════════════════════════════ -->
+<footer class="glass">
+  <div><h5>INTEGRANTES</h5><ul>{% for p in team %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  <div>
+    <h5>FUENTES</h5>
+    <p>NASA Prognostics Center of Excellence, N-CMAPSS. Arias Chao, Kulkarni, Goebel y Fink (2021), <i>Aircraft Engine Run-to-Failure Dataset under Real Flight Conditions</i>.</p>
+    <p>Lim et al. (2021), <i>Temporal Fusion Transformers</i> · Romano et al. (2019), <i>Conformalized Quantile Regression</i> · Gibbs y Candès (2021), <i>Adaptive Conformal Inference Under Distribution Shift</i> · Prokhorenkova et al. (2018), <i>CatBoost</i>.</p>
+    <p>Kaggle: <code>bishals098/nasa-cmapss-2-engine-degradation</code>. Parte I: <code>compartir.html</code>.</p>
+    <p class="mono" id="genStamp" style="font-size:11px"></p>
+  </div>
+</footer>
+
+<script>
+{{ app_js }}
+</script>
+</body>
+</html>
