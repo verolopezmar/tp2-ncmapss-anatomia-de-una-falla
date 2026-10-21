@@ -1,0 +1,119 @@
+{
+ "model": "Temporal Fusion Transformer",
+ "epochs": 17,
+ "best_val_loss": 2.7997546195983887,
+ "train_seconds": 750.1,
+ "quantiles": [
+  0.05,
+  0.5,
+  0.95
+ ],
+ "n_params": 144067,
+ "importance": {
+  "cycle": 19.75309944152832,
+  "hours": 2.045099973678589,
+  "alt_max": 3.856600046157837,
+  "Mach_mean": 1.6475000381469727,
+  "TRA_mean": 3.0620999336242676,
+  "T2_mean": 2.6177000999450684,
+  "d_T24": 0.7741000056266785,
+  "d_T30": 0.7166000008583069,
+  "d_T48": 37.62730026245117,
+  "d_T50": 1.839400053024292,
+  "d_P15": 1.8186999559402466,
+  "d_P2": 0.7724000215530396,
+  "d_P21": 1.930400013923645,
+  "d_P24": 2.108299970626831,
+  "d_Ps30": 2.240000009536743,
+  "d_P40": 0.845300018787384,
+  "d_P50": 3.487499952316284,
+  "d_Nf": 2.013200044631958,
+  "d_Nc": 2.3638999462127686,
+  "d_Wf": 8.480999946594238
+ },
+ "hardware": {
+  "python": "3.13.12",
+  "system": "Windows 11",
+  "cpu": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel",
+  "gpu": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "torch": "2.11.0+cu128",
+  "where": "computadora local"
+ },
+ "device": "GPU",
+ "config": {
+  "feature_set": "delta",
+  "max_encoder_length": 30,
+  "hidden_size": 32,
+  "attention_head_size": 4,
+  "dropout": 0.15,
+  "learning_rate": 0.003,
+  "batch_size": 128
+ },
+ "search": [
+  {
+   "config": "base",
+   "val_loss": 3.0748,
+   "epochs": 16
+  },
+  {
+   "config": {
+    "hidden_size": 16,
+    "dropout": 0.2
+   },
+   "val_loss": 3.1855,
+   "epochs": 13
+  },
+  {
+   "config": {
+    "hidden_size": 64,
+    "learning_rate": 0.001,
+    "dropout": 0.2
+   },
+   "val_loss": 3.1283,
+   "epochs": 12
+  },
+  {
+   "config": {
+    "feature_set": "smooth"
+   },
+   "val_loss": 3.2948,
+   "epochs": 12
+  },
+  {
+   "config": {
+    "feature_set": "smooth",
+    "learning_rate": 0.001,
+    "dropout": 0.3
+   },
+   "val_loss": 3.2604,
+   "epochs": 13
+  },
+  {
+   "config": {
+    "feature_set": "delta",
+    "max_encoder_length": 30
+   },
+   "val_loss": 2.7998,
+   "epochs": 17
+  },
+  {
+   "config": {
+    "feature_set": "delta",
+    "max_encoder_length": 30,
+    "hidden_size": 64,
+    "learning_rate": 0.001
+   },
+   "val_loss": 2.8804,
+   "epochs": 24
+  },
+  {
+   "config": {
+    "max_encoder_length": 10,
+    "learning_rate": 0.001
+   },
+   "val_loss": 3.2016,
+   "epochs": 15
+  }
+ ],
+ "chosen": 5
+}

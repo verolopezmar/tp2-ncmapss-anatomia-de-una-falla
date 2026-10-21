@@ -134,8 +134,8 @@ def run(cfg: dict, paths: Paths) -> dict:
     out["figures"]["line3_delay"] = fig(
         data, height=420, showlegend=False, yaxis={"title": {"text": "Vuelo de alarma − vuelo de inicio real"}, "zeroline": True},
         shapes=[{"type": "line", "x0": 0, "x1": 1, "xref": "paper", "y0": 0, "y1": 0, "line": {"color": "var(--navy)", "dash": "dot"}}],
-        annotations=[{"x": 0, "xref": "paper", "xanchor": "left", "y": 0, "yanchor": "bottom", "showarrow": False,
-                      "text": "inicio real de la degradación", "font": {"size": 11, "color": "var(--navy)"}}])
+        annotations=[{"x": 1, "xref": "paper", "xanchor": "right", "y": 1.02, "yref": "paper", "yanchor": "bottom", "showarrow": False,
+                      "text": "0 = inicio real de la degradación · arriba = alarma tardía", "font": {"size": 11, "color": "var(--navy)"}}])
 
     # Motor de ejemplo: el de demora CUSUM más cercana a la mediana
     gc = test[test["method"] == "cusum"].dropna(subset=["delay"])
@@ -157,9 +157,9 @@ def run(cfg: dict, paths: Paths) -> dict:
     for m in METHODS:   # entradas de leyenda para las líneas de alarma
         data.append({"type": "scatter", "mode": "lines", "x": [None], "y": [None], "name": f"alarma {METHODS[m]}", "line": {"color": COLORS[m], "width": 2}})
     out["figures"]["line3_example"] = fig(
-        data, height=440, shapes=shapes, annotations=ann, legend={"y": 1.2},
+        data, height=440, shapes=shapes, annotations=ann, legend={"y": 1.24}, margin={"r": 70},
         xaxis={"title": {"text": f"Número de vuelo · {uid.replace('_u', ' · motor ')} (prueba)"}},
-        yaxis={"title": {"text": "Índice de salud"}}, yaxis2={"overlaying": "y", "side": "right", "title": {"text": "CUSUM"}, "showgrid": False})
+        yaxis={"title": {"text": "Índice de salud"}}, yaxis2={"overlaying": "y", "side": "right", "title": {"text": "CUSUM", "standoff": 12}, "showgrid": False, "automargin": True})
 
     S = {s["método"]: s for s in summ}
     c, p, th = S[METHODS["cusum"]], S[METHODS["pelt"]], S[METHODS["t48"]]

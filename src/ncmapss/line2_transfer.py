@@ -9,6 +9,8 @@ motores de prueba de cada clase (corto, mediano, largo). Variantes:
      (transferencia estricta: nada del pipeline vio vuelos medianos o largos).
   D  Sólo cortos · residuos del modelo sano principal (que sí vio todas las clases):
      separa el problema del modelo de RUL del problema de la normalización.
+  E  Control: tantos motores como en C/D, pero sorteados entre TODAS las clases (promedio de
+     varios sorteos). Separa el efecto de tener menos motores del efecto de ver sólo vuelos cortos.
 """
 from __future__ import annotations
 
@@ -28,9 +30,10 @@ from .splits import load_splits
 from .viz import fig, rnd, save_json
 
 log = logging.getLogger(__name__)
-VARIANTS = {"A": "Todas las clases · residuos", "B": "Sólo cortos · sensores crudos",
-            "C": "Sólo cortos · residuos (modelo sano de cortos)", "D": "Sólo cortos · residuos (modelo sano general)"}
-COLORS = {"A": "var(--navy)", "B": "var(--ti)", "C": "var(--hud)", "D": "var(--hud-2)"}
+VARIANTS = {"A": "Todas las clases · residuos", "E": "Control: igual cantidad de motores, todas las clases",
+            "B": "Sólo cortos · sensores crudos", "C": "Sólo cortos · residuos (modelo sano de cortos)",
+            "D": "Sólo cortos · residuos (modelo sano general)"}
+COLORS = {"A": "var(--navy)", "E": "var(--muted)", "B": "var(--ti)", "C": "var(--hud)", "D": "var(--hud-2)"}
 
 
 def _table(flights: pd.DataFrame, cfg: dict, sensors: list[str], splits: pd.DataFrame):
@@ -70,10 +73,12 @@ def run(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> dict:
 
     tables = {"A": _table(flights_main, cfg, sensors, splits), "B": _table(flights_raw, cfg, sensors, splits),
               "C": _table(flights_short, cfg, sensors, splits)}
-    tables["D"] = tables["A"]
-    rows = []
-    for v, (t, feats) in tables.items():
-        dev = t[t["split"] == "dev"] if v == "A" else t[(t["split"] == "dev") & (t["Fc"] == 1)]
+    tables["D"] = tables["E"] = tables["A"]
+    n_short = tables["A"][0].query("split == 'dev' and Fc == 1")["uid"].nunique()
+    rng = np.random.default_rng(cfg["seed"])
+
+    def fit_eval(v, t, feats, dev_units, draw=0):
+        dev = t[t["uid"].isin(dev_units)]
         test = t[(t["split"] == "test") & (t["cycle"] >= cfg["results"]["eval_min_cycle"])]
         m = CatBoostRegressor(loss_function="RMSE", iterations=iters, learning_rate=cfg["catboost"]["learning_rate"],
                               depth=cfg["catboost"]["depth"], random_seed=cfg["seed"], verbose=False, allow_writing_files=False)
@@ -81,9 +86,21 @@ def run(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> dict:
         p = m.predict(test[feats])
         for k, g in test.assign(pred=p).groupby("Fc"):
             sm = M.summary(g["RUL"], g["pred"], nasa=cfg["nasa_score"])
-            rows.append({"variant": v, "Fc": int(k), "units_train": int(dev["uid"].nunique()), **sm})
+            rows.append({"variant": v, "draw": draw, "Fc": int(k), "units_train": int(len(dev_units)), **sm})
+
+    rows = []
+    for v in VARIANTS:
+        t, feats = tables[v]
+        devu = t.drop_duplicates("uid").query("split == 'dev'")
+        if v == "A":
+            fit_eval(v, t, feats, devu["uid"].tolist())
+        elif v == "E":
+            for d in range(cfg["line2"]["control_draws"]):
+                fit_eval(v, t, feats, rng.choice(devu["uid"].to_numpy(), n_short, replace=False).tolist(), d)
+        else:
+            fit_eval(v, t, feats, devu.loc[devu["Fc"] == 1, "uid"].tolist())
         log.info("  Línea 2 · %s listo", VARIANTS[v])
-    res = pd.DataFrame(rows)
+    res = pd.DataFrame(rows).groupby(["variant", "Fc"], as_index=False).mean(numeric_only=True)
 
     out = {"figures": {}, "insights": {}}
     data = []
@@ -100,22 +117,29 @@ def run(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> dict:
                            **{f"RMSE vuelos {fc_names[k]}s": round(float(piv.loc[v, k]), 2) for k in piv.columns},
                            **{f"NASA vuelos {fc_names[k]}s": round(float(res[(res.variant == v) & (res.Fc == k)]['nasa'].iloc[0]), 3) for k in piv.columns}}
                           for v in VARIANTS]
-    gap_c = piv.loc["C", long_k] / piv.loc["A", long_k]
-    gap_b = piv.loc["B", long_k] / piv.loc["A", long_k]
+    L = piv[long_k]
     out["line2_r2"] = {f"{tag}_{k}": v for (tag, k), v in r2.items()}
+    data_part = L["E"] - L["A"]            # cuánto se pierde por tener menos motores
+    domain_part = L["C"] - L["E"]          # cuánto se pierde, además, por ver sólo vuelos cortos
+    norm_txt = (f"Usar el modelo sano general en lugar del de cortos (D vs. C) {'mejora' if L['D'] < L['C'] else 'no mejora'} el resultado "
+                f"en vuelos {fc_names[long_k]}s ({num(L['D'], 2)} contra {num(L['C'], 2)})")
+    raw_txt = (f"descontar el efecto operativo {'ayuda' if min(L['C'], L['D']) < L['B'] else 'no ayuda'} frente a usar sensores crudos "
+               f"(B: {num(L['B'], 2)})")
     out["insights"]["line2"] = (
-        f"Entrenando sólo con {int(res[res.variant == 'C']['units_train'].iloc[0])} motores de vuelos cortos, el error en vuelos {fc_names[long_k]}s es "
-        f"<b>{num(gap_c, 1)} veces</b> el del modelo con todas las clases si todo el pipeline se ajusta con vuelos cortos (C), y "
-        f"{num(gap_b, 1)} veces con sensores crudos (B). El modelo sano de cortos explica el {num(100 * r2[('short', 1)], 3)} % de un sensor "
-        f"en vuelos cortos pero el {num(100 * r2[('short', long_k)], 2)} % en vuelos {fc_names[long_k]}s: fuera de su envolvente extrapola mal, "
-        f"y ese error se confunde con desgaste. Con el modelo sano general (D) el RMSE en vuelos {fc_names[long_k]}s baja a {num(piv.loc['D', long_k], 2)}: "
-        "la clave para generalizar está en separar bien el efecto operativo.")
+        f"En vuelos {fc_names[long_k]}s, el modelo con todos los motores de desarrollo tiene RMSE {num(L['A'], 2)}. Con sólo {n_short} motores "
+        f"sorteados entre todas las clases (control E) sube a {num(L['E'], 2)}: <b>{num(data_part, 1)} vuelos</b> se explican por tener menos datos. "
+        f"Con {n_short} motores de vuelos <i>cortos</i> (C) llega a {num(L['C'], 2)}: <b>{num(domain_part, 1)} vuelos más</b> son el costo de no haber "
+        f"visto ese tipo de vuelo. {norm_txt}, y {raw_txt}. El modelo sano de cortos explica el {num(100 * r2[('short', 1)], 3)} % de un sensor en "
+        f"vuelos cortos y el {num(100 * r2[('short', long_k)], 2)} % en vuelos {fc_names[long_k]}s.")
+    main_gap = "el tipo de vuelo" if domain_part > data_part else "la cantidad de motores"
     out["future_discussion_l2"] = [
-        f"<b>Línea 2.</b> Un modelo que sólo vio vuelos cortos no generaliza bien a vuelos largos (RMSE {num(piv.loc['C', long_k], 2)} contra "
-        f"{num(piv.loc['A', long_k], 2)} del modelo con todas las clases). La mayor parte de la brecha viene de la normalización operativa: el modelo "
-        f"sano entrenado con vuelos cortos no conoce altitudes y regímenes de los largos. Esto justifica investigar Domain-Adversarial Neural "
-        "Networks (que aprenden representaciones invariantes al tipo de vuelo), PatchTST sobre la señal segundo a segundo y transfer learning con "
-        "pocos vuelos largos etiquetados."]
+        f"<b>Línea 2.</b> Un modelo que sólo vio vuelos cortos no generaliza a vuelos {fc_names[long_k]}s: RMSE {num(L['C'], 2)} contra "
+        f"{num(L['E'], 2)} de un modelo con la misma cantidad de motores de todas las clases, y {num(L['A'], 2)} con todos. Pesa más {main_gap}. "
+        + ("Normalizar mejor las condiciones de vuelo no alcanza (D no mejora a C): " if L["D"] >= L["C"] else
+           "Normalizar mejor las condiciones de vuelo ayuda (D mejora a C), pero no cierra la brecha: ")
+        + f"lo que cambia entre clases es también cuánto desgaste produce cada vuelo (los motores de vuelos {fc_names[long_k]}s viven menos ciclos). Esto motiva aprender representaciones invariantes al tipo de vuelo "
+        "(Domain-Adversarial Neural Networks), modelar la señal segundo a segundo con PatchTST y adaptar con pocos motores del dominio "
+        "nuevo (transfer learning), en lugar de depender sólo de la normalización."]
     save_json(out, paths.outputs / "line2.json")
     log.info("Línea 2 guardada")
     return out

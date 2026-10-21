@@ -48,6 +48,7 @@ def assemble(cfg: dict, paths: Paths, mode: str) -> dict:
     R["facts"] = facts
     for k in ("split_summary", "metrics_table", "model_meta", "discussion", "main_model"):
         R[k] = res.get(k)
+    R["models_chosen"] = (res.get("model_meta") or {}).get(res.get("main_model"), {}).get("model")
     R["line2_table"] = l2.get("line2_table")
     R["line3_table"] = l3.get("line3_table")
     R["future_discussion"] = l2.get("future_discussion_l2", []) + l3.get("future_discussion_l3", [])
@@ -62,7 +63,7 @@ def assemble(cfg: dict, paths: Paths, mode: str) -> dict:
     if res:
         rf = res["facts"]
         kpis += [
-            {"code": "RMSE", "value": _num(rf["rmse"]), "dec": 1, "unit": "vuelos", "label": f"error típico del {rf['main_model']} en motores nunca vistos"},
+            {"code": "RMSE", "value": _num(rf["rmse"]), "dec": 1, "unit": "vuelos", "label": f"error típico ({rf['main_model']}) en motores nunca vistos"},
             {"code": "COB", "value": _num(rf["coverage_aci"]), "dec": 1, "unit": "%", "label": f"de los vuelos con el RUL real dentro del intervalo (objetivo {rf['target']})"},
             {"code": "SOB", "value": _num(rf["miss_over_aci"]), "dec": 1, "unit": "%", "label": "de los vuelos con la cota inferior por encima del RUL real"},
         ]
@@ -93,9 +94,12 @@ def assemble(cfg: dict, paths: Paths, mode: str) -> dict:
     if l2.get("line2_table"):
         t = {r["variante"][0]: r for r in l2["line2_table"]}
         key = [k for k in t["A"] if k.startswith("RMSE")][-1]
+        dom, dat = t["C"][key] - t["E"][key], t["E"][key] - t["A"][key]
         concl.append({"title": "Generalizar entre rutas no es gratis",
                       "text": f"Entrenando sólo con vuelos cortos, el RMSE en {key.replace('RMSE ', '')} pasa de {num(t['A'][key], 2)} a "
-                              f"{num(t['C'][key], 2)} vuelos. Separar el efecto operativo es la clave (Línea 2)."})
+                              f"{num(t['C'][key], 2)} vuelos; con la misma cantidad de motores de todas las clases sería {num(t['E'][key], 2)}. "
+                              + ("La mayor parte de la brecha es por no haber visto ese tipo de vuelo (Línea 2)." if dom > dat else
+                                 "La mayor parte de la brecha es por tener menos motores (Línea 2).")})
     if l3.get("line3_table"):
         c = next(r for r in l3["line3_table"] if "CUSUM" in r["método"])
         concl.append({"title": "El desgaste se puede ver temprano",

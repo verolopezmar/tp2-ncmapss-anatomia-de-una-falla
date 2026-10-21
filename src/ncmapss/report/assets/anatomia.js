@@ -123,15 +123,18 @@ function renderDecisions() {
 function renderTable(sel, rows, {hl, cls} = {}) {
   const el = $(sel); if (!el || !rows || !rows.length) return;
   const cols = Object.keys(rows[0]);
+  // decimales parejos por columna: los del valor más preciso de esa columna (máx. 3)
+  const dec = Object.fromEntries(cols.map(c => [c, Math.min(3, Math.max(0, ...rows.map(r =>
+    typeof r[c] === 'number' ? ((String(r[c]).split('.')[1] || '').length) : 0)))]));
   el.innerHTML = `<table class="tbl"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(r =>
     `<tr class="${hl && hl(r) ? 'hl' : ''}">${cols.map(c => { const v = r[c]; const k = cls ? cls(c, v, r) : '';
-      return `<td class="${k}">${typeof v === 'number' ? fmt(v, Number.isInteger(v) ? 0 : (Math.abs(v) < 10 ? 2 : 1)) : (v ?? '—')}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+      return `<td class="${k}">${typeof v === 'number' ? fmt(v, dec[c]) : (v ?? '—')}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
 }
 function renderModels() {
   const el = $('#models'); if (!el) return;
   const desc = {
     'CatBoost': 'Baseline. Gradient boosting sobre árboles con regresión multi-cuantil: cada vuelo es una fila con variables que sólo miran hacia atrás.',
-    'Temporal Fusion Transformer': 'Modelo principal. Lee la secuencia de los últimos vuelos del motor (LSTM + atención), selecciona variables y predice cuantiles.',
+    'Temporal Fusion Transformer': 'Modelo de la línea propuesta. Lee la secuencia de los últimos vuelos del motor (LSTM + atención), selecciona variables y predice cuantiles.',
   };
   el.innerHTML = Object.values(R.model_meta).map(m => {
     const hw = m.hardware || {};
@@ -142,7 +145,8 @@ function renderModels() {
     if (m.n_params) rows.push(['Parámetros', fmt(m.n_params)]);
     if (m.config) rows.push(['Configuración elegida', Object.entries(m.config).map(([k,v])=>`${k} = ${v}`).join(' · ')]);
     if (m.epochs) rows.push(['Épocas', fmt(m.epochs)]);
-    return `<div class="glass model-card reveal"><div class="k">${m.model === 'CatBoost' ? 'BASELINE' : 'MODELO PRINCIPAL'}</div><h4>${m.model}</h4>
+    const chosen = R.models_chosen === m.model;
+    return `<div class="glass model-card reveal"${chosen ? ' style="box-shadow:var(--lift-shadow)"' : ''}><div class="k">${m.model === 'CatBoost' ? 'BASELINE · MODELO TABULAR' : 'MODELO SECUENCIAL'}${chosen ? ' <span class="part-tag">ELEGIDO EN VALIDACIÓN</span>' : ''}</div><h4>${m.model}</h4>
       <p class="fig-sub">${desc[m.model]||''}</p><dl>${rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
   }).join('');
 }

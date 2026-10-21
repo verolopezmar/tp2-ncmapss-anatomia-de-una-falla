@@ -108,6 +108,9 @@ results:
 
 nasa_score: {a_under: 13.0, a_over: 10.0}   # s = exp(-d/13)-1 si d<0 · exp(d/10)-1 si d>0, d = pred - real
 
+line2:
+  control_draws: 5                    # sorteos del control "mismos motores, todas las clases"
+
 line3:                                # detección temprana (change point)
   baseline_flights: 10                # vuelos iniciales que definen la referencia sana
   cusum_k: 0.5                        # holgura del CUSUM (en desvíos estándar)

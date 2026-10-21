@@ -166,9 +166,11 @@ def run(cfg: dict, paths: Paths) -> dict:
 def build_outputs(cfg, paths, preds, intervals, met, traces) -> dict:
     cc, rc = cfg["conformal"], cfg["results"]
     target = 1 - cc["alpha"]
-    main = "tft" if "tft" in preds else "catboost"
+    # Modelo que alimenta el sistema: el de menor score NASA en VALIDACIÓN (nunca se mira la prueba para elegir)
+    val_score = {m: M.nasa_score(p.loc[p["role"] == "val", "RUL"], p.loc[p["role"] == "val", "q50"], **cfg["nasa_score"]) for m, p in preds.items()}
+    main = min(val_score, key=val_score.get)
     out = {"figures": {}, "insights": {}, "tables": {}, "facts": {}, "main_model": main,
-           "models": {m: MODELS[m] for m in preds}}
+           "models": {m: MODELS[m] for m in preds}, "val_nasa": val_score}
 
     # Resumen de la partición
     p0 = next(iter(preds.values()))
@@ -348,10 +350,14 @@ def build_outputs(cfg, paths, preds, intervals, met, traces) -> dict:
     if other:
         o = other[0]
         better = "mejor" if mm.loc[(main, "raw"), "rmse"] < mm.loc[(o, "raw"), "rmse"] else "peor"
-        comp = (f"El {MODELS[main]} tiene un RMSE {better} que {MODELS[o]} ({num(r_raw['rmse'], 2)} contra {num(mm.loc[(o, 'raw'), 'rmse'], 2)} vuelos) "
+        comp = (f"{MODELS[main]} tiene un RMSE {better} que {MODELS[o]} ({num(r_raw['rmse'], 2)} contra {num(mm.loc[(o, 'raw'), 'rmse'], 2)} vuelos) "
                 f"y un score NASA de {num(r_raw['nasa'], 3)} contra {num(mm.loc[(o, 'raw'), 'nasa'], 3)}. ")
+    n_cal = int(p0.loc[p0["role"] == "calib", "uid"].nunique())
+    below = r_main["coverage"] < target
+    sel = (f"Para el sistema se usa <b>{MODELS[main]}</b>, elegido por su score NASA en los motores de validación "
+           + "(" + ", ".join(f"{MODELS[m]} {num(v, 3)}" for m, v in val_score.items()) + "), sin mirar la prueba. ") if len(preds) > 1 else ""
     out["discussion"] = [
-        comp + f"Los cuantiles que da el modelo por sí solo cubren el {pct(r_raw['coverage'], 1)} de los casos (objetivo {pct(target)}) "
+        comp + sel + f"Los cuantiles que da el modelo por sí solo cubren el {pct(r_raw['coverage'], 1)} de los casos (objetivo {pct(target)}) "
                + ("y no están calibrados: la incertidumbre del modelo es optimista." if r_raw["coverage"] < target else
                   "pero sin ninguna garantía: la cobertura depende de qué tan bien aprendió el modelo, no de una calibración."),
         f"Con CQR asimétrico global la cobertura es {pct(r_cqr['coverage'], 1)} y el RUL real queda por debajo de la cota inferior en el "
@@ -359,6 +365,11 @@ def build_outputs(cfg, paths, preds, intervals, met, traces) -> dict:
         f"{pct(mm.loc[(main, 'mcqr'), 'coverage'], 1)}. El ACI de flota, que además se reajusta cada vez que un motor falla, logra "
         f"{pct(r_main['coverage'], 1)} de cobertura con un ancho medio de {num(r_main['width'], 1)} vuelos y deja la sobreestimación en "
         f"{pct(r_main['miss_over'], 1)}.",
+        (f"La cobertura queda {num(100 * (target - r_main['coverage']), 1)} puntos por debajo del objetivo. La garantía conformal supone datos "
+         f"intercambiables, pero acá se calibra con sólo {n_cal} motores y los vuelos de un mismo motor están fuertemente correlacionados: el "
+         "tamaño de muestra efectivo es chico y los motores de prueba no se comportan exactamente como los de calibración. El ACI corrige "
+         "parte de esa diferencia sobre la marcha, sobre todo en la cola peligrosa (sobreestimación)." if below else
+         f"La cobertura alcanza el objetivo aun con sólo {n_cal} motores de calibración."),
         f"La mediana sobreestima en el {pct(r_main['over_point'])} de los vuelos, pero la cota inferior sólo en el {pct(r_main['miss_over'], 1)}: "
         "planificar con la cota inferior convierte un riesgo frecuente en uno controlado, a cambio de inspeccionar algunos vuelos antes de lo necesario.",
     ]
