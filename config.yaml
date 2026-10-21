@@ -1,0 +1,78 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Anatomía de una Falla · Parte II — configuración única del proyecto
+#  Todo parámetro del análisis vive acá: el código no tiene valores a mano.
+#  La carpeta de datos se toma de la variable NCMAPSS_DATA_DIR (.env).
+# ════════════════════════════════════════════════════════════════════════════
+
+seed: 42
+
+data:
+  default_dir: C:\datos\ncmapss       # se usa sólo si no existe NCMAPSS_DATA_DIR
+  file_glob: "N-CMAPSS_DS*.h5"
+  chunk_rows: 2000000                 # filas por bloque al leer los .h5 (cuida la RAM)
+  seconds_sample_frac: 0.02           # fracción de segundos que se guarda para EDA y modelo sano
+  example_flight: {dataset: DS01, unit: 5, cycle: 10}   # vuelo usado para ilustrar un perfil
+
+# Modo rápido (python scripts/run_all.py --sample): prueba todo el pipeline en minutos
+sample:
+  datasets: [DS02, DS05]
+  max_units_per_split: 4
+  seconds_sample_frac: 0.01
+
+flight_classes:                       # definición del paper (Arias Chao et al., 2021)
+  1: {name: corto,   hours: "1–3 h"}
+  2: {name: mediano, hours: "3–5 h"}
+  3: {name: largo,   hours: "> 5 h"}
+
+# Modelo de "motor sano": predice cada sensor a partir de las 4 condiciones de vuelo
+health_model:
+  hidden: [128, 128, 64]
+  epochs: 30
+  epochs_sample: 6
+  batch_size: 8192
+  lr: 0.002
+  max_train_rows: 1500000
+
+# Partición sin fuga: se divide por MOTOR. El test oficial de NASA queda intacto.
+split:
+  calib_frac: 0.25                    # motores de desarrollo reservados para calibrar la incertidumbre
+  val_frac: 0.15                      # motores de desarrollo para early stopping
+
+features:
+  rolling_windows: [5, 10]            # ventanas (en vuelos) de medias y pendientes móviles, sólo hacia atrás
+
+catboost:
+  iterations: 3000
+  iterations_sample: 300
+  learning_rate: 0.03
+  depth: 6
+  quantiles: [0.05, 0.5, 0.95]
+  early_stopping_rounds: 200
+
+tft:
+  max_encoder_length: 20
+  hidden_size: 32
+  attention_head_size: 4
+  dropout: 0.15
+  hidden_continuous_size: 16
+  learning_rate: 0.003
+  batch_size: 128
+  max_epochs: 60
+  max_epochs_sample: 3
+  patience: 8
+  quantiles: [0.05, 0.5, 0.95]
+
+conformal:
+  alpha: 0.10                         # 90 % de cobertura objetivo
+  alpha_over: 0.03                    # parte del error permitida para SOBREESTIMAR (cola peligrosa)
+  alpha_under: 0.07                   # parte permitida para subestimar (cola conservadora)
+  aci_gamma: 0.05                     # paso de aprendizaje de Adaptive Conformal Inference
+  fleet_permutations: 30              # órdenes de llegada de motores simulados para el ACI de flota
+
+nasa_score: {a_under: 13.0, a_over: 10.0}   # s = exp(-d/13)-1 si d<0 · exp(d/10)-1 si d>0, d = pred - real
+
+line3:                                # detección temprana (change point)
+  baseline_flights: 10                # vuelos iniciales que definen la referencia sana
+  cusum_k: 0.5                        # holgura del CUSUM (en desvíos estándar)
+  cusum_h: 5.0                        # umbral de alarma
+  pelt_penalty: 10.0

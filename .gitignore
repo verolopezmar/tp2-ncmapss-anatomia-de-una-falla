@@ -1,0 +1,36 @@
+# --- Entornos y caché de Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/
+lightning_logs/
+catboost_info/
+
+# --- Credenciales: NUNCA al repo ---
+kaggle.json
+.kaggle/
+.env
+*.token
+*secret*
+
+# --- Datos (pesan ~29 GB; se descargan de Kaggle, ver README) ---
+data/
+archive*/
+*.h5
+*.parquet
+
+# --- Salidas pesadas o del modo rápido ---
+outputs/sample/
+outputs/*/models/
+reports/*_sample.html
+
+# --- Sistema / editores ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
