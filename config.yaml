@@ -27,9 +27,9 @@ flight_classes:                       # definición del paper (Arias Chao et al.
 # Modelo de "motor sano": predice cada sensor a partir de las 4 condiciones de vuelo
 health_model:
   hidden: [128, 128, 64]
-  epochs: 30
-  epochs_sample: 6
-  batch_size: 8192
+  steps: 12000                        # pasos de optimización (independiente del tamaño de la muestra)
+  steps_sample: 3000
+  batch_size: 4096
   lr: 0.002
   max_train_rows: 1500000
 
