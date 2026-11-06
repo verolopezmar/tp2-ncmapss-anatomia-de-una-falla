@@ -1,4 +1,4 @@
-# Python 3.11–3.13. PyTorch con GPU NVIDIA: instalarlo ANTES con
+# Python 3.12–3.13. PyTorch con GPU NVIDIA: instalarlo ANTES con
 #   pip install torch --index-url https://download.pytorch.org/whl/cu128
 # (sin GPU alcanza con `pip install torch`; el TFT también corre en Colab).
 torch>=2.7

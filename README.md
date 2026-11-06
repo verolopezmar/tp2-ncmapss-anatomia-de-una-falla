@@ -53,7 +53,7 @@ reports/informe_completo.html   anexo con el análisis completo
 
 ## 1 · Instalación
 
-Python 3.11–3.13.
+Python 3.12 o 3.13 (`numpy` y `scipy` fijados en `requirements.txt` no instalan en 3.11).
 
 ```bash
 git clone https://github.com/verolopezmar/tp2-ncmapss-anatomia-de-una-falla.git
@@ -113,7 +113,8 @@ Etapas (se pueden correr sueltas con `--only` o saltear con `--skip`):
 | `tft` | Temporal Fusion Transformer con búsqueda de 8 configuraciones | 15–20 min con GPU |
 | `conformal` | intervalos CQR / ACI y métricas | 2 s |
 | `line2` · `line3` | experimentos de las líneas 2 y 3 | 2 min · 2 s |
-| `report` | arma `reports/informe_final.html` (corto) y `reports/informe_completo.html` (anexo) | 1 s |
+| `cv_fit` · `cv_eval` | CatBoost por grupos de motores, intervalos CV+, confianza por motor y política de inspección | 25 min · 10 s |
+| `report` · `entrega` | arma los informes y `reports/entrega_modelo.html` (una página con el modelo final) | 1 s |
 
 \* Medido con un Intel Core Ultra 9 y una RTX 5070 Ti. Sin GPU el TFT tarda bastante más: ver Colab abajo.
 
@@ -124,6 +125,19 @@ python scripts/run_all.py --only eda report        # rehacer el EDA y el informe
 python scripts/run_all.py --skip tft               # todo menos el TFT (p. ej. si se entrena en Colab)
 python scripts/run_all.py --only report            # sólo regenerar los dos HTML con los resultados de outputs/full
 ```
+
+Con poca RAM (por ejemplo 16 GB) usar `--workers 1`. `data.chunk_rows` sólo cambia la memoria usada, no los resultados.
+
+### Modelo final y demo
+
+```bash
+python scripts/run_all.py --workers 1 --only cv_fit cv_eval entrega
+python scripts/predecir_motor.py --motor DS02_u11 --cada 10 --verificar
+```
+
+El modelo final son 5 CatBoost multicuantil ajustados por grupos de motores, cada uno con su modelo sano, más
+intervalos CV+. La demo parte del `.h5` crudo y corta la historia en cada vuelo pedido. Resultados y límites:
+[`reports/entrega_modelo.html`](reports/entrega_modelo.html).
 
 ### Notebooks
 

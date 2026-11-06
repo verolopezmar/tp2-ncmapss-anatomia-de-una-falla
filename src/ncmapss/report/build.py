@@ -107,6 +107,7 @@ def assemble(cfg: dict, paths: Paths, mode: str) -> dict:
                               f"(mediana), con sólo el {num(c['desgaste ocurrido al alarmar [%]'], 1)} % del desgaste ocurrido (Línea 3)."})
     R["conclusions"] = concl
     R["closing"] = [c for c in concl if c["key"] in ("residuos", "cota", "rutas", "alerta")]
+    R["cvplus"] = _load(paths, "cvplus")
     R["generated"] = datetime.now().strftime("%d/%m/%Y %H:%M")
     R["mode"] = mode
     return R
@@ -116,6 +117,9 @@ def presentation_facts(R: dict, cfg: dict) -> dict:
     """Cifras extra para la versión corta (presentación), calculadas desde los resultados."""
     f = {}
     mt = R.get("metrics_table") or []
+    cv = R.pop("cvplus", None)
+    if cv:
+        f.update(final_facts(cv, mt))
     raw = {r["modelo"]: r for r in mt if r["intervalo"] == "Cuantiles del modelo"}
     for m, k in (("CatBoost", "cb"), ("TFT", "tft")):
         if m in raw:
@@ -155,6 +159,36 @@ def presentation_facts(R: dict, cfg: dict) -> dict:
                  p_l3_t48_det=num(th["detectados [%]"], 0), p_l3_pelt_fa=num(p["alarma antes del inicio real [%]"], 0),
                  p_l3_target_fa=f"{num(100 * cfg['line3']['target_false_alarm'])} %")
     return f
+
+
+def final_facts(cv: dict, mt: list[dict]) -> dict:
+    """Cifras de la sección de cambios finales. Antes y después comparan lo mismo: ambos con ACI."""
+    base = next(r for r in mt if r["modelo"] == "CatBoost" and r["intervalo"].startswith("ACI"))
+    plain, aci = cv["test"]["cvplus"], cv["test"]["cvplus_aci"]
+    ins = cv["inspection"]
+    pol = ins["by_tau"][str(ins["lead_flights"])]
+    low, fx = pol["cota inferior"], pol["vida fija por clase"]
+    gap = pol["cota inferior - vida fija"]["waste"]
+    dif = cv["ci"]["cvplus - base_catboost"]["rmse"]["dif_ic95"]
+
+    def row(name: str, r: dict) -> list[str]:
+        return [name, num(r["rmse"], 2), num(r["nasa"], 3), f"{num(100 * r['coverage'], 1)} %",
+                f"{num(100 * r['miss_over'], 1)} %", num(r["width"], 1)]
+
+    return {"p_cv_rows": [["CatBoost · 11 motores · ACI", num(base["RMSE"], 2), num(base["score NASA"], 3),
+                           f"{num(base['cobertura [%]'], 1)} %", f"{num(base['% real < cota inferior'], 1)} %",
+                           num(base["ancho medio [vuelos]"], 1)],
+                          row(f"CatBoost CV+ · {cv['units_dev']} motores", plain), row("CatBoost CV+ y ACI · modelo final", aci)],
+            "p_cv_over": f"{num(100 * aci['miss_over'], 1)} %", "p_cv_over_base": f"{num(base['% real < cota inferior'], 1)} %",
+            "p_cv_cov": f"{num(100 * aci['coverage'], 1)} %", "p_cv_cov_plain": f"{num(100 * plain['coverage'], 1)} %", "p_cv_cov_base": f"{num(base['cobertura [%]'], 1)} %",
+            "p_cv_width": num(aci["width"], 1), "p_cv_width_base": num(base["ancho medio [vuelos]"], 1),
+            "p_cv_rmse": num(aci["rmse"], 2), "p_cv_rmse_base": num(base["RMSE"], 2),
+            "p_cv_units": str(cv["units_dev"]), "p_cv_folds": str(len(cv["fit"]["folds"])), "p_cv_iters": str(cv["fit"]["iteraciones"]),
+            "p_cv_waste": num(low["waste"], 1), "p_cv_waste_fixed": num(fx["waste"], 1),
+            "p_cv_save_lo": num(-gap[1], 1), "p_cv_save_hi": num(-gap[0], 1), "p_cv_tau": str(ins["lead_flights"]),
+            "p_cv_test_units": str(cv["units_test"]), "p_cv_dev_cov": f"{num(100 * cv['development'][cv['chosen']]['coverage'], 1)} %",
+            "p_cv_dev_rmse": num(cv["development"][cv["chosen"]]["rmse"], 1), "p_cv_test_rmse": num(aci["rmse"], 1),
+            "p_cv_rmse_sig": dif[0] <= 0 <= dif[1], "p_cv_ds07": f"{num(100 * cv['per_ds']['DS07']['coverage'], 1)} %"}
 
 
 def _f(x) -> float:
@@ -242,6 +276,21 @@ def presentation_slides(R: dict) -> dict:
         {"k": "CPD BAYESIANO", "title": "Alarmas con probabilidad",
          "text": "Detección de cambios online que dé la probabilidad de que el desgaste ya empezó, en vez de un sí o no."},
     ]
+    if "p_cv_rows" in F:
+        S["final_changes"] = [
+            f"<b>Un solo modelo:</b> CatBoost, calibrado con los {F['p_cv_units']} motores de desarrollo en lugar de {F['p_calib_units']}.",
+            f"<b>Sin fuga:</b> {F['p_cv_folds']} grupos de motores; para cada uno se reentrenan modelo sano, residuos y CatBoost sin esos motores.",
+            "<b>De la predicción a la decisión:</b> se ordena la inspección cuando la cota inferior baja de un umbral elegido en desarrollo.",
+            "<b>Funciona de punta a punta:</b> del archivo crudo del motor a la decisión, usando sólo la historia hasta cada vuelo.",
+        ]
+        S["final_notes"] = [
+            f"<b>Más seguro, no más preciso:</b> RMSE {F['p_cv_rmse']} contra {F['p_cv_rmse_base']}"
+            + (" (diferencia no significativa)" if F["p_cv_rmse_sig"] else "")
+            + f" e intervalos de {F['p_cv_width']} vuelos contra {F['p_cv_width_base']}.",
+            f"<b>Se pasa del objetivo:</b> {F['p_cv_dev_cov']} en desarrollo y {F['p_cv_cov_plain']} en prueba ({F['p_cv_cov']} con ACI): esos motores resultaron más fáciles (RMSE {F['p_cv_test_rmse']} contra {F['p_cv_dev_rmse']}).",
+            f"<b>La prueba se miró dos veces:</b> las {F['p_cv_iters']} iteraciones se eligieron sólo en desarrollo, pero ese rediseño vino después de ver un primer resultado.",
+            f"<b>Puntos débiles:</b> DS07 cubre {F['p_cv_ds07']}, y los {F['p_cv_tau']} vuelos para ejecutar la inspección son un supuesto nuestro.",
+        ]
     S["limits"] = [
         "<b>Datos simulados</b>: C-MAPSS con vuelos reales; habría que validarlo con datos de operación.",
         f"<b>Pocos motores</b>: {F['n_units']} en total y {F.get('p_calib_units', '—')} para calibrar; la garantía conformal es aproximada.",
