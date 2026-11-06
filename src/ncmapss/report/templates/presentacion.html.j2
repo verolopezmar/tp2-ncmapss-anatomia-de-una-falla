@@ -23,6 +23,7 @@
 {{ svg_defs }}
 
 {% set titles = ["El problema y el EDA", "Línea 1 · Vida útil con incertidumbre", "Línea 2 · Generalizar entre tipos de vuelo", "Línea 3 · Detección temprana y cierre"] %}
+{% if F.p_cv_rows %}{% set titles = titles + ["Cambios finales"] %}{% endif %}
 {% macro profbox(i) -%}
 {% set L = lines[i] %}
 <div class="prof-box reveal">
@@ -47,7 +48,7 @@
 <header class="topbar" id="topbar">
   <div class="brand"><span class="dot"></span>N-CMAPSS · LAB II · TP2</div>
   <nav class="chapnav" id="chapnav">
-    {% for t in titles %}<a href="#s{{ loop.index }}">{{ loop.index }} · {{ ["EDA", "LÍNEA 1", "LÍNEA 2", "LÍNEA 3"][loop.index0] }}</a>{% endfor %}
+    {% for t in titles %}<a href="#s{{ loop.index }}">{{ loop.index }} · {{ ["EDA", "LÍNEA 1", "LÍNEA 2", "LÍNEA 3", "FINAL"][loop.index0] }}</a>{% endfor %}
     <a href="informe_completo.html" class="annex-link">ANEXO ↗</a>
   </nav>
 </header>
@@ -82,7 +83,7 @@
       <div class="hud-note">Lecturas reales de <span id="hLabel">un vuelo del dataset</span>.</div>
     </div>
   </div>
-  <nav class="parts" aria-label="Secciones de la presentación">
+  <nav class="parts {{ 'five' if F.p_cv_rows else '' }}" aria-label="Secciones de la presentación">
     {% for t in titles %}<a class="part reveal {{ 'hot' if loop.index > 1 else '' }}" href="#s{{ loop.index }}">
       <div class="n">{{ loop.index }}</div><div class="t">{{ t }}</div></a>{% endfor %}
   </nav>
@@ -207,13 +208,33 @@
   <ul class="points">{% for p in S.limits %}<li class="reveal">{{ p }}</li>{% endfor %}</ul>
   <a class="annex reveal" href="informe_completo.html">Anexo: informe completo con todo el EDA y la metodología ↗</a>
 </section>
+
+{% if F.p_cv_rows %}
+<!-- ═══ 5 · CAMBIOS FINALES ════════════════════════════════════════════════════ -->
+<section class="chapter compact" id="s5">
+  {{ head("5", "RODAJE", "Sección 5", "Cambios finales") }}
+  <div class="big3">
+    {{ stat("SOBREESTIMACIÓN", F.p_cv_over, "de los vuelos con la cota inferior sobre el RUL real, contra " ~ F.p_cv_over_base ~ " antes (tolerancia " ~ F.r_alpha_over ~ ").", "var(--orange)") }}
+    {{ stat("COBERTURA DEL INTERVALO", F.p_cv_cov, "de los vuelos con el RUL real adentro, contra " ~ F.p_cv_cov_base ~ " antes (objetivo " ~ F.r_target ~ ").", "var(--hud)", "d1") }}
+    {{ stat("VIDA ÚTIL DESPERDICIADA", F.p_cv_waste ~ " vuelos", "por motor, contra " ~ F.p_cv_waste_fixed ~ " de inspeccionar en un vuelo fijo por clase: ahorro de " ~ F.p_cv_save_lo ~ " a " ~ F.p_cv_save_hi ~ " (IC 95 %).", "var(--navy)", "d2") }}
+  </div>
+  <div class="glass panel reveal"><div class="label">Antes y después · {{ F.p_cv_test_units }} motores de prueba</div><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Modelo</th><th>RMSE</th><th>Score NASA</th><th>Cobertura</th><th>Sobreestima</th><th>Ancho [vuelos]</th></tr></thead>
+    <tbody>{% for r in F.p_cv_rows %}<tr{{ ' class="hl"' if loop.last else '' }}>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table></div></div>
+  <div class="duo">
+    <div class="glass panel reveal" style="margin:0"><h4>Qué cambiamos</h4><ul class="points">{% for p in S.final_changes %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div class="glass panel reveal d1" style="margin:0"><h4>Qué hay que tener en cuenta</h4><ul class="points hot">{% for p in S.final_notes %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  </div>
+</section>
+{% endif %}
 </main>
 
 <footer class="glass">
   <div><h5>INTEGRANTES</h5><ul>{% for p in team %}<li>{{ p }}</li>{% endfor %}</ul></div>
   <div>
     <h5>FUENTES</h5>
-    <p>NASA N-CMAPSS · Arias Chao et al. (2021). Lim et al. (2021), TFT · Romano et al. (2019), CQR · Gibbs y Candès (2021), ACI · Prokhorenkova et al. (2018), CatBoost.</p>
+    <p>NASA N-CMAPSS · Arias Chao et al. (2021). Lim et al. (2021), TFT · Romano et al. (2019), CQR · Barber et al. (2021), CV+ · Gibbs y Candès (2021), ACI · Prokhorenkova et al. (2018), CatBoost.</p>
     <p class="mono" id="genStamp" style="font-size:11px"></p>
   </div>
 </footer>
