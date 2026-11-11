@@ -1,0 +1,54 @@
+% ============================================================================
+%  PHM Society Annual Conference 2027 · Round 1 (abstract, opcional)
+%  Abstract: domingo 29/11/2026 · Paper completo: domingo 18/04/2027
+%  (el paper se sube como REVISIÓN del mismo envío del abstract)
+%
+%  Reglas del abstract:
+%   - sitio 2027: un solo párrafo, mínimo 300 palabras, sin abreviaturas,
+%     notas al pie, referencias ni ecuaciones
+%   - plantilla PHM: abstract de 150 a 400 palabras
+%   -> este abstract tiene 388 palabras (cumple ambas)
+%
+%  Overleaf: subir esta carpeta completa (main.tex + PHMSociety.cls) y compilar
+%  con pdfLaTeX. La clase original sólo reconoce años hasta 2020, por eso el año
+%  se fija con \def\publicationYear{2027} (sin modificar el .cls).
+% ============================================================================
+\documentclass[PHM]{PHMSociety}
+\def\publicationYear{2027}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\begin{document}
+
+\title{Overestimation-Averse Conformal Prognostics and Inspection Scheduling for Turbofan Engines under Real Flight Conditions}
+
+% TODO: definir orden de autores (y si se suma el profesor) y completar los emails
+\author{%
+	Ver\'onica L\'opez Marsico\authorNumber{1}, Juan Acciardi\authorNumber{1}, Pedro Na\'on\authorNumber{1}, and Agust\'in Giannice\authorNumber{1}
+}
+
+\address{%
+	\affiliation{1}{Pontificia Universidad Cat\'olica Argentina, Buenos Aires, Argentina}{ % TODO: verificar dirección y código postal
+		{\email{author1@uca.edu.ar}}\\
+		{\email{author2@uca.edu.ar}}\\
+		{\email{author3@uca.edu.ar}}\\
+		{\email{author4@uca.edu.ar}}
+	}
+}
+
+\maketitle
+
+% Licencia CC BY 3.0 US: nombre del PRIMER autor ("Nombre Apellido")
+\phmLicenseFootnote{Ver\'onica L\'opez Marsico}
+
+\begin{abstract}
+A remaining useful life prediction can guide maintenance only if it states its uncertainty honestly and controls overestimation, the error that can lead to an in-service failure, explicitly rather than averaging it away. This work builds a prognostic pipeline around that requirement on the New Commercial Modular Aero-Propulsion System Simulation dataset from the National Aeronautics and Space Administration, in which turbofan engines degrade until failure under real flight profiles. Sixty development engines serve for training and calibration; the thirty-nine official test engines are excluded from every calibration and threshold choice. A neural model of the healthy engine predicts each sensor from the flight conditions, so that the residuals isolate degradation from operating effects. Backward-looking features of these residuals feed a gradient-boosted quantile regressor, which outperforms a Temporal Fusion Transformer by 0.3 to 1.4 flights of error. The main contribution is the uncertainty layer. Conformalized quantile intervals are made asymmetric, allowing overestimation only three of ten percentage points of the error budget, and are calibrated through engine-wise cross-validation that retrains the whole pipeline in every fold, so all sixty development engines serve for calibration instead of eleven held-out ones. A fleet-level adaptive conformal update, applied each time an engine fails, corrects the remaining miscalibration. On the test engines, the root mean squared error stays at 6.6 flights, statistically unchanged from the eleven-engine baseline. The share of lower bounds that overestimate the true remaining life falls from 7.0 to 1.9 percent and coverage rises from 87.1 to 93.5 percent against a 90 percent target, at the cost of wider intervals. The lower bound then drives an inspection policy whose threshold is chosen on development engines. Assuming an inspection takes five flights to perform, the policy yields one late inspection in thirty-nine engines and wastes 44 percent less useful life than a fixed-life schedule per flight class with equally few late inspections. In complementary experiments, a model trained only on short flights reaches an error of 14.7 flights on long flights, against 9.3 for one trained on as many engines from all flight classes. A multivariate health index monitored with a cumulative sum detector flags degradation onset with a median delay of six flights, when about four percent of total degradation has occurred. These results indicate that, in safety-oriented prognostics, calibration and decision design deserve as much attention as model complexity.
+\end{abstract}
+
+% ----------------------------------------------------------------------------
+%  Paper completo (Round 2): las secciones van acá. Recomendado 6-10 páginas.
+%  Referencias con apacite: \bibliographystyle{apacite} \bibliography{phm2027}
+% ----------------------------------------------------------------------------
+
+\end{document}
