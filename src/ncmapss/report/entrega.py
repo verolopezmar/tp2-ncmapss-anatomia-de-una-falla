@@ -99,7 +99,8 @@ def _policy_row(name: str, r: dict) -> str:
 
 def run(cfg: dict, paths: Paths) -> Path:
     R = json.loads((paths.outputs / "cvplus.json").read_text(encoding="utf-8"))
-    v1 = json.loads((paths.outputs / "cvplus_v1_early_stopping.json").read_text(encoding="utf-8"))
+    v1_path = paths.outputs / "cvplus_v1_early_stopping.json"   # primer intento; sólo existe en la corrida completa
+    v1 = json.loads(v1_path.read_text(encoding="utf-8")) if v1_path.exists() else None
     res = json.loads((paths.outputs / "results.json").read_text(encoding="utf-8"))
     ins = R["inspection"]
     tau = ins["lead_flights"]
@@ -110,19 +111,21 @@ def run(cfg: dict, paths: Paths) -> Path:
     dev = R["development"][R["chosen"]]
     d_cb, d_tft = R["ci"]["cvplus - base_catboost"], R["ci"]["base_tft - base_catboost"]
     saving = 100 * (1 - low["waste"] / fx["waste"])
-    ds7 = R["per_ds"]["DS07"]
+    weak = min(R["per_ds"], key=lambda k: R["per_ds"][k]["coverage"])   # subconjunto con peor cobertura
+    ds7 = R["per_ds"][weak]
     b_aci = next(r for r in res["metrics_table"] if r["modelo"] == "CatBoost" and r["intervalo"].startswith("ACI"))
-    limits = [
+    limits = [] if v1 is None else [
         f"<b>Se usó la prueba dos veces.</b> La primera versión fijaba las iteraciones por grupo con early stopping (entre "
         f"{min(f['iteraciones'] for f in v1['fit']['folds'])} y {max(f['iteraciones'] for f in v1['fit']['folds'])}) y dio score NASA "
         f"{num(v1['test']['cvplus']['nasa'], 3)}. Después de verlo se pasó a {R['fit']['iteraciones']} iteraciones comunes, elegidas sólo con "
-        f"pinball en desarrollo: {num(t['nasa'], 3)}. La regla no usa la prueba, pero esa decisión de rediseño sí vino después de mirarla.",
+        f"pinball en desarrollo: {num(t['nasa'], 3)}. La regla no usa la prueba, pero esa decisión de rediseño sí vino después de mirarla."]
+    limits += [
         f"<b>La cobertura supera el objetivo.</b> En desarrollo CV+ da {num(100 * dev['coverage'], 1)} %, justo lo pedido; en prueba, "
         f"{num(100 * t['coverage'], 1)} %. Los motores de prueba resultan más fáciles (RMSE {num(t['rmse'], 1)} contra {num(dev['rmse'], 1)}): "
         "los intervalos salen más anchos de lo necesario. ACI corrige parte de eso.",
         f"<b>El costo es ancho.</b> Con ACI, el intervalo pasa de {num(b_aci['ancho medio [vuelos]'], 1)} a {num(a['width'], 1)} vuelos. La mejora es de sobreestimación y "
         "cobertura; no de precisión.",
-        f"<b>DS07 sigue siendo el punto débil:</b> cobertura {num(100 * ds7['coverage'], 1)} %, la más baja por subconjunto.",
+        f"<b>{weak} sigue siendo el punto débil:</b> cobertura {num(100 * ds7['coverage'], 1)} %, la más baja por subconjunto.",
         f"<b>Son 39 motores.</b> La tasa de tardías no se puede separar: cada motor vale 2,6 puntos, y el umbral de {tau} vuelos es un supuesto "
         "nuestro, no un dato de mantenimiento real. Los datos son simulados (C-MAPSS con perfiles de vuelo reales).",
     ]
@@ -185,7 +188,8 @@ function eng(u){{const e=D.engines[u];Plotly.react('f-eng',[
 {{x:e.cycle,y:e.RUL,mode:'lines',line:{{color:'{ORANGE}',width:2,dash:'dash'}},name:'RUL real',hovertemplate:'real %{{y}}<extra></extra>'}}],L,C)}}
 const s=document.getElementById('sel');Object.keys(D.engines).forEach(u=>s.add(new Option(u.replace('_u',' · motor '),u)));s.value='DS02_u11';s.onchange=()=>eng(s.value);eng(s.value);
 </script></body></html>"""
-    out = paths.reports / "entrega_modelo.html"
+    sfx = "" if paths.outputs.name == "full" else "_sample"   # el modo rápido no pisa la entrega completa
+    out = paths.reports / f"entrega_modelo{sfx}.html"
     out.write_text(html, encoding="utf-8")
     log.info("Entrega: %s (%.1f MB)", out, out.stat().st_size / 1e6)
     return out

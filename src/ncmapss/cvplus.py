@@ -398,6 +398,10 @@ def run_eval(cfg: dict, paths: Paths) -> dict:
     sums["cvplus_aci"] = engine_sums(frames["cvplus_aci"], ns)
 
     # Referencia: el pipeline publicado, recalculado en esta corrida
+    for k in ("catboost", "tft"):
+        if not (paths.outputs / f"preds_{k}.parquet").exists():
+            raise FileNotFoundError(f"cv_eval compara contra la etapa 1 y necesita {paths.outputs / f'preds_{k}.parquet'}: "
+                                    f"corré antes la etapa {k} (el TFT también se puede entrenar en Colab, ver README)")
     base = pd.read_parquet(paths.outputs / "preds_catboost.parquet")
     base = base[base["cycle"] >= rc["eval_min_cycle"]]
     tft = pd.read_parquet(paths.outputs / "preds_tft.parquet")

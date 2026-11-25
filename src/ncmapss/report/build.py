@@ -188,7 +188,8 @@ def final_facts(cv: dict, mt: list[dict]) -> dict:
             "p_cv_save_lo": num(-gap[1], 1), "p_cv_save_hi": num(-gap[0], 1), "p_cv_tau": str(ins["lead_flights"]),
             "p_cv_test_units": str(cv["units_test"]), "p_cv_dev_cov": f"{num(100 * cv['development'][cv['chosen']]['coverage'], 1)} %",
             "p_cv_dev_rmse": num(cv["development"][cv["chosen"]]["rmse"], 1), "p_cv_test_rmse": num(aci["rmse"], 1),
-            "p_cv_rmse_sig": dif[0] <= 0 <= dif[1], "p_cv_ds07": f"{num(100 * cv['per_ds']['DS07']['coverage'], 1)} %"}
+            "p_cv_rmse_sig": dif[0] <= 0 <= dif[1], "p_cv_weak_ds": min(cv["per_ds"], key=lambda k: cv["per_ds"][k]["coverage"]),
+            "p_cv_ds07": f"{num(100 * min(v['coverage'] for v in cv['per_ds'].values()), 1)} %"}
 
 
 def _f(x) -> float:
@@ -289,7 +290,7 @@ def presentation_slides(R: dict) -> dict:
             + f" e intervalos de {F['p_cv_width']} vuelos contra {F['p_cv_width_base']}.",
             f"<b>Se pasa del objetivo:</b> {F['p_cv_dev_cov']} en desarrollo y {F['p_cv_cov_plain']} en prueba ({F['p_cv_cov']} con ACI): esos motores resultaron más fáciles (RMSE {F['p_cv_test_rmse']} contra {F['p_cv_dev_rmse']}).",
             f"<b>La prueba se miró dos veces:</b> las {F['p_cv_iters']} iteraciones se eligieron sólo en desarrollo, pero ese rediseño vino después de ver un primer resultado.",
-            f"<b>Puntos débiles:</b> DS07 cubre {F['p_cv_ds07']}, y los {F['p_cv_tau']} vuelos para ejecutar la inspección son un supuesto nuestro.",
+            f"<b>Puntos débiles:</b> {F['p_cv_weak_ds']} cubre {F['p_cv_ds07']}, y los {F['p_cv_tau']} vuelos para ejecutar la inspección son un supuesto nuestro.",
         ]
     S["limits"] = [
         "<b>Datos simulados</b>: C-MAPSS con vuelos reales; habría que validarlo con datos de operación.",

@@ -118,7 +118,7 @@ falla), cómo evolucionan a lo largo de la vida, si hay valores atípicos y cóm
          md("""
 ## 7 · Conclusiones del EDA → decisiones de modelado
 
-Cada decisión del modelado (notebook `02_rul_incertidumbre.ipynb`) responde a un hallazgo de este análisis:
+Cada decisión del modelado (notebooks `02_rul_incertidumbre.ipynb` y `04_modelo_final.ipynb`) responde a un hallazgo de este análisis:
 """), code("import pandas as pd\npd.set_option('display.max_colwidth', None)\nnb.decisions()"),
          code("pd.DataFrame(E['takeaways'])")]
     return c
@@ -126,13 +126,18 @@ Cada decisión del modelado (notebook `02_rul_incertidumbre.ipynb`) responde a u
 
 def rul_notebook():
     return [md("""
-# Anatomía de una Falla · Parte II — 02 · RUL con incertidumbre (Línea 1)
+# Anatomía de una Falla · Parte II — 02 · RUL con incertidumbre (Línea 1, etapa 1)
+
+> **Etapa 1, reemplazada por el modelo final.** Acá se comparan CatBoost y el Temporal Fusion Transformer calibrados con
+> sólo 11 motores. Se eligió CatBoost (mejor en validación y en prueba) y después se recalibró con los 60 motores de
+> desarrollo mediante CV+: ese modelo final está en **`04_modelo_final.ipynb`**. Las cifras de esta etapa son la línea
+> base contra la que se compara el modelo final.
 
 **Pregunta:** ¿cuántos vuelos le quedan a un motor, y con qué margen de error, controlando especialmente el riesgo de
 **sobreestimar** su vida útil?
 
-**Modelos:** CatBoost (baseline, regresión por cuantiles) y Temporal Fusion Transformer (modelo principal), ambos con
-intervalos de **Adaptive Conformal Prediction** calibrados en motores que ningún modelo vio.
+**Modelos:** CatBoost (regresión por cuantiles) y Temporal Fusion Transformer, ambos con intervalos conformales (CQR y
+**Adaptive Conformal Inference**) calibrados en 11 motores que ningún modelo vio.
 
 Los resultados se generan con `python scripts/run_all.py --only catboost tft conformal` y se leen de `outputs/<modo>/`.
 """), code(SETUP), code("""
@@ -174,6 +179,156 @@ def future_notebook():
         md("## Lectura y trabajo futuro"), code("for t in L2['future_discussion_l2'] + L3['future_discussion_l3']: nb.html('<p>'+t+'</p>')")]
 
 
+def final_notebook():
+    return [md("""
+# Anatomía de una Falla · Parte II — 04 · Modelo final (CatBoost con CV+, ACI de flota y política de inspección)
+
+Este es el **modelo final** del proyecto y el que respalda el abstract del congreso (`paper_phm2027/main.tex`).
+Reemplaza a la etapa 1 (notebook `02`, con 11 motores de calibración).
+
+**Cómo regenerarlo:** `python scripts/run_all.py --workers 1 --only cv_fit cv_eval entrega`. Este notebook sólo lee
+`outputs/full/cvplus*.json` y `cvplus_intervals.parquet`: no necesita los datos crudos.
+
+## Metodología final
+
+1. **Modelo de motor sano y residuos.** Una red chica predice cada sensor desde altitud, Mach, potencia y temperatura de
+   entrada, entrenada sólo con vuelos sanos. Residuo = medido − esperado.
+2. **Variables que sólo miran hacia atrás:** residuo menos la línea base del motor, medias y pendientes móviles (5 y 10
+   vuelos), número de vuelo, clase y condiciones del vuelo.
+3. **CatBoost multicuantil (5 / 50 / 95 %)** con validación cruzada **por motor**: los 60 motores de desarrollo se
+   dividen en 5 grupos estratificados por subconjunto. Para cada grupo se reentrena **todo** (modelo sano, residuos y
+   CatBoost) sin esos motores, y se predice sobre ellos. Así los 60 motores aportan errores fuera de muestra para
+   calibrar (antes eran 11). Las iteraciones (200, comunes a los grupos) se eligen por pérdida pinball en desarrollo.
+4. **Intervalos CV+ asimétricos.** De un 10 % de error permitido, 3 % para sobreestimar la vida (la cola peligrosa) y
+   7 % para subestimarla.
+5. **ACI de flota (variante online).** Los motores de prueba se recorren en un orden de llegada; cuando cada uno falla y
+   se conoce su vida real, el nivel de cada cola se corrige según cuántas veces su historia quedó fuera del intervalo.
+   Se promedia sobre 30 órdenes aleatorios.
+6. **Política de inspección.** Se ordena inspeccionar en el primer vuelo en que la cota inferior CV+ (sin ACI) cae por
+   debajo de un umbral H. Si ejecutarla lleva τ = 5 vuelos (supuesto), es tardía cuando quedan menos. H se elige en
+   desarrollo para no superar 5 % de tardías.
+
+Todas las reglas (método, iteraciones, umbral) se eligen con motores de desarrollo; los 39 motores de prueba oficiales
+se usan para evaluar. Los intervalos de confianza remuestrean **motores** (5000 réplicas).
+"""), code(SETUP), code("""
+import json
+import pandas as pd
+import plotly.graph_objects as go
+from src.ncmapss.report import entrega as E
+pd.set_option('display.max_colwidth', None)
+R = nb.load("cvplus", MODE)
+DEC = nb.load("cvplus_decision", MODE)
+FIT = nb.load("cvplus_fit", MODE)
+print("Motores de desarrollo:", R["units_dev"], "· de prueba:", R["units_test"], "· método elegido:", R["chosen"])
+"""), md("""
+## 1 · Decisión en desarrollo
+
+La regla se fijó antes de mirar la prueba: tolerancia a sobreestimar, cercanía a la cobertura objetivo y menor ancho.
+CV+ global cumple la tolerancia de 3 % y queda en 90 % de cobertura; la variante por tramos se descarta.
+"""), code("""
+cols = {"coverage": "cobertura", "miss_over": "sobreestima", "miss_under": "subestima", "width": "ancho [vuelos]", "rmse": "RMSE"}
+pd.DataFrame(DEC["desarrollo"]).T[list(cols)].rename(columns=cols).round(3)
+"""), md("""
+## 2 · Cuántas iteraciones
+
+Pérdida pinball fuera de grupo (sólo motores de desarrollo) según el número de iteraciones de CatBoost.
+"""), code("""
+c = FIT["curva_pinball"]
+fig = go.Figure(go.Scatter(x=c["iter"], y=c["loss"], mode="lines+markers"))
+fig.add_vline(x=FIT["iteraciones"], line_dash="dot", annotation_text=f"elegidas: {FIT['iteraciones']}")
+fig.update_layout(height=320, xaxis_title="Iteraciones", yaxis_title="Pinball fuera de grupo", template="simple_white")
+fig.show()
+"""), md("""
+## 3 · Resultados en los 39 motores de prueba
+
+- **TFT / CatBoost · 11 motores:** etapa 1 (notebook `02`), calibrados con 11 motores (CQR por tramos, sin ACI).
+- **CatBoost CV+ · 60 motores:** el modelo final, sin actualización online.
+- **CatBoost CV+ y ACI:** el modelo final con la actualización de flota.
+
+Para comparar con la etapa 1 en igualdad de condiciones: sin ACI, la línea base es «CatBoost · 11 motores»; con ACI,
+la línea base con ACI está en `results.json` (sobreestimación 4,7 %, cobertura 88,2 %, ancho 18,8 vuelos).
+"""), code("""
+rows = []
+for m, name in E.METHODS.items():
+    t, ci = R["test"][m], R["ci"][m]
+    rows.append({"método": name, "RMSE": t["rmse"], "score NASA": t["nasa"],
+                 "cobertura [%]": 100 * t["coverage"], "IC cobertura": f"{100*ci['cov'][0]:.1f} – {100*ci['cov'][1]:.1f}",
+                 "sobreestima [%]": 100 * t["miss_over"], "IC sobreestima": f"{100*ci['over'][0]:.1f} – {100*ci['over'][1]:.1f}",
+                 "ancho [vuelos]": t["width"]})
+res = nb.load("results", MODE)
+b = next(r for r in res["metrics_table"] if r["modelo"] == "CatBoost" and r["intervalo"].startswith("ACI"))
+rows.insert(2, {"método": "CatBoost · 11 motores y ACI", "RMSE": b["RMSE"], "score NASA": b["score NASA"],
+                "cobertura [%]": b["cobertura [%]"], "IC cobertura": "—", "sobreestima [%]": b["% real < cota inferior"],
+                "IC sobreestima": "—", "ancho [vuelos]": b["ancho medio [vuelos]"]})
+pd.DataFrame(rows).round(2)
+"""), md("""
+### Diferencias pareadas (IC 95 %, remuestreando motores)
+
+Si el intervalo no cruza el cero, la diferencia es clara con 39 motores.
+"""), code("""
+diff = []
+for k, v in R["ci"].items():
+    if " - " in k:
+        for metric, d in v.items():
+            diff.append({"comparación": k, "métrica": metric, "IC 95 % de la diferencia": f"{d['dif_ic95'][0]:.3f} a {d['dif_ic95'][1]:.3f}"})
+pd.DataFrame(diff)
+"""), code("""
+go.Figure(E._ci_fig(R, "coverage", "cov", R["target"], "objetivo 90 %", "Cobertura en prueba [%]", [70, 100])).show()
+go.Figure(E._ci_fig(R, "miss_over", "over", R["alpha_over"], "tolerancia 3 %", "Sobreestimación en prueba [%]", [0, 12])).show()
+"""), md("## 4 · Por subconjunto, clase de vuelo y tramo de vida remanente (CV+)"), code("""
+cols = {"rmse": "RMSE", "coverage": "cobertura", "miss_over": "sobreestima", "width": "ancho", "n": "vuelos"}
+display(pd.DataFrame(R["per_ds"]).T[list(cols)].rename(columns=cols).round(3))
+display(pd.DataFrame(R["per_fc"]).T[list(cols)].rename(columns=cols).rename(index={"1": "corto", "2": "mediano", "3": "largo"}).round(3))
+pd.DataFrame(R["buckets"]).set_index("tramo")[list(cols)].rename(columns=cols).round(3)
+"""), md("""
+## 5 · Motor a motor
+
+Cada predicción usa sólo la historia hasta ese vuelo. Cambiá `MOTOR` para ver otro motor de prueba.
+"""), code("""
+it = pd.read_parquet(nb.output_path("cvplus_intervals.parquet", MODE))
+MOTOR = "DS02_u11"
+g = it[it.uid == MOTOR].sort_values("cycle")
+fig = go.Figure([
+    go.Scatter(x=g.cycle, y=g.hi, mode="lines", line_width=0, showlegend=False, hoverinfo="skip"),
+    go.Scatter(x=g.cycle, y=g.lo, mode="lines", fill="tonexty", name="intervalo CV+ (cota inferior abajo)"),
+    go.Scatter(x=g.cycle, y=g.q50, mode="lines", name="predicción (mediana)"),
+    go.Scatter(x=g.cycle, y=g.RUL, mode="lines", line_dash="dash", name="RUL real")])
+fig.update_layout(height=380, xaxis_title="Número de vuelo", yaxis_title="Vuelos restantes", template="simple_white")
+fig.show()
+"""), md("""
+## 6 · De la predicción a la inspección
+
+Vida útil desperdiciada = vuelos que quedaban cuando se inspeccionó, menos τ. Se compara contra una vida fija por clase
+de vuelo, elegida también en desarrollo con la misma regla de tardías. La política con la mediana se muestra porque
+rinde parecido: la ganancia frente a la vida fija viene sobre todo de tener un pronóstico.
+"""), code("""
+rows = []
+for tau, pol in R["inspection"]["by_tau"].items():
+    for name in ("cota inferior", "mediana", "vida fija por clase"):
+        r = pol[name]
+        rows.append({"τ [vuelos]": int(tau), "política": name, "umbral H": r.get("H"), "tardías": f"{r['late_engines']} de {R['units_test']}",
+                     "vida desperdiciada": round(r["waste"], 2), "IC 95 %": f"{r['ci']['waste'][0]:.1f} – {r['ci']['waste'][1]:.1f}"})
+display(pd.DataFrame(rows))
+go.Figure(E._policy_fig(R)).show()
+"""), md("## 7 · Límites que hay que decir"), code("""
+v1 = nb.load("cvplus_v1_early_stopping", MODE)
+t, a, dev = R["test"]["cvplus"], R["test"]["cvplus_aci"], R["development"][R["chosen"]]
+for s in [
+    f"<b>La prueba se miró dos veces.</b> La primera versión (early stopping por grupo) dio score NASA {v1['test']['cvplus']['nasa']:.3f}; "
+    f"después se pasó a {FIT['iteraciones']} iteraciones comunes elegidas sólo con pinball en desarrollo ({t['nasa']:.3f}). La regla no usa la "
+    "prueba, pero la decisión de rediseñar vino después de verla.",
+    f"<b>Sobrecobertura en prueba.</b> CV+ da {100*dev['coverage']:.1f} % en desarrollo y {100*t['coverage']:.1f} % en prueba: los motores de "
+    f"prueba son más fáciles (RMSE {t['rmse']:.1f} contra {dev['rmse']:.1f}). ACI la reduce a {100*a['coverage']:.1f} %, a costa de subir la "
+    f"sobreestimación de {100*t['miss_over']:.1f} % a {100*a['miss_over']:.1f} %.",
+    "<b>ACI usa motores de prueba.</b> Es una actualización online: incorpora la vida real de cada motor de prueba cuando falla. "
+    "No es una evaluación offline pura.",
+    f"<b>Son {R['units_test']} motores.</b> Cada inspección tardía vale {100/R['units_test']:.1f} puntos; τ = 5 es un supuesto, no un dato de "
+    "mantenimiento real. Los motores y su degradación son simulados; los perfiles de vuelo son reales.",
+]:
+    nb.html("<p>" + s + "</p>")
+""")]
+
+
 def colab_notebook():
     return [md("""
 # Anatomía de una Falla · Parte II — Entrenar el TFT en Google Colab
@@ -186,7 +341,7 @@ Para quien no tenga GPU NVIDIA. El TFT sólo necesita **dos archivos procesados*
 
 **Pasos:** `Entorno de ejecución → Cambiar tipo de entorno → GPU (T4)`, correr las celdas en orden, subir los dos archivos
 cuando se pidan y al final descargar `preds_tft.parquet` y `model_tft.json`. Copiarlos a `outputs/full/` del repo local y correr
-`python scripts/run_all.py --only conformal report`. El informe indica que el TFT se entrenó en Colab.
+`python scripts/run_all.py --only conformal cv_eval report entrega`. El informe indica que el TFT se entrenó en Colab.
 """), code("!nvidia-smi --query-gpu=name,memory.total --format=csv"),
         code("""
 !git clone -q https://github.com/verolopezmar/tp2-ncmapss-anatomia-de-una-falla.git repo
@@ -215,7 +370,8 @@ def main():
     a = ap.parse_args()
     NB.mkdir(exist_ok=True)
     books = {"01_eda.ipynb": eda_notebook(), "02_rul_incertidumbre.ipynb": rul_notebook(),
-             "03_lineas_futuras.ipynb": future_notebook(), "colab_tft.ipynb": colab_notebook()}
+             "03_lineas_futuras.ipynb": future_notebook(), "04_modelo_final.ipynb": final_notebook(),
+             "colab_tft.ipynb": colab_notebook()}
     for name, cells in books.items():
         n = nbf.v4.new_notebook()
         n.cells = cells
