@@ -49,6 +49,7 @@ notebooks/
 outputs/full/            resultados en JSON (versionados, permiten regenerar el informe sin los datos)
 reports/informe_final.html      versión corta para presentar (4 secciones)
 reports/informe_completo.html   anexo con el análisis completo
+archivo/                 material de la Parte I que ya no usa el pipeline (compare_parte1.py: cifras Parte I vs. Parte II)
 ```
 
 ## 1 · Instalación

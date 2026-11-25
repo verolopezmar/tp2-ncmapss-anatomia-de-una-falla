@@ -31,6 +31,9 @@ reports/*_sample.html
 # --- Sistema / editores ---
 .DS_Store
 Thumbs.db
+ehthumbs.db
+~$*
+*.tmp
 desktop.ini
 .vscode/
 .idea/
