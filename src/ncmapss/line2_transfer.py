@@ -14,6 +14,7 @@ motores de prueba de cada clase (corto, mediano, largo). Variantes:
 """
 from __future__ import annotations
 
+import gc
 import json
 import logging
 
@@ -65,6 +66,8 @@ def run(cfg: dict, paths: Paths, mode: str, workers: int = 4) -> dict:
             y = g[cc["outputs"]].to_numpy()
             r = 1 - ((y - p) ** 2).sum(0) / ((y - y.mean(0)) ** 2).sum(0)
             r2[(tag, int(k))] = float(np.median(r[: len(sensors)]))
+    del s, tr, va                  # libera la muestra de segundos antes de la pasada sobre los .h5
+    gc.collect()
     flights_short = residuals(cfg, paths, mode, workers, tag="_short")
     flights_main = pd.read_parquet(paths.processed / "flights.parquet")
     flights_raw = flights_main.copy()

@@ -1,0 +1,63 @@
+% ============================================================================
+%  PHM Society Annual Conference 2027 · Round 1 (abstract, opcional)
+%  Abstract: domingo 29/11/2026 · Paper completo: domingo 18/04/2027
+%  (el paper se sube como REVISIÓN del mismo envío del abstract)
+%
+%  Reglas del abstract:
+%   - sitio 2027: un solo párrafo, mínimo 300 palabras, sin abreviaturas,
+%     notas al pie, referencias ni ecuaciones
+%   - plantilla PHM: abstract de 150 a 400 palabras
+%   -> este abstract tiene 393 palabras (cumple ambas)
+%
+%  Cifras: outputs/full/cvplus.json y results.json (corrida del 05/11/2026);
+%  ver notebooks/04_modelo_final.ipynb. Antecedentes: estado_del_arte.md.
+%
+%  Compilar con pdfLaTeX (Overleaf: subir main.tex + PHMSociety.cls). La clase
+%  sólo reconoce años hasta 2020: el año se fija con \def\publicationYear.
+%  Este .tex es la versión única: el PDF que se envíe tiene que salir de acá.
+% ============================================================================
+\documentclass[PHM]{PHMSociety}
+\def\publicationYear{2027}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\begin{document}
+
+\title{Overestimation-Averse Conformal Prognostics and Inspection Scheduling for Turbofan Engines under Variable Flight Conditions}
+
+\author{%
+	Juan Ignacio Acciardi\authorNumber{1}, Agust\'in Giannice\authorNumber{1}, Ver\'onica Ana L\'opez Marsico\authorNumber{1}, Pedro Na\'on\authorNumber{1}, and Julio Alberto Paredes Rojas\authorNumber{1}
+}
+
+\address{%
+	\affiliation{1}{Pontificia Universidad Cat\'olica Argentina, Buenos Aires, Argentina}{ % TODO: confirmar si se agrega facultad o dirección postal
+		{\email{juanacciardi@uca.edu.ar}}\\
+		{\email{agustingiannice@uca.edu.ar}}\\
+		{\email{veronicalopez0@uca.edu.ar}}\\
+		{\email{pedronaon@uca.edu.ar}}\\
+		{\email{albertoparedesrojas@uca.edu.ar}}
+	}
+}
+
+\maketitle
+
+% Licencia CC BY 3.0 US: nombre del PRIMER autor ("Nombre Apellido")
+\phmLicenseFootnote{Juan Ignacio Acciardi}
+
+\begin{abstract}
+Remaining useful life predictions can support maintenance decisions when their uncertainty is quantified and safety-critical overestimation is controlled. Asymmetric conformal intervals for aircraft engines have recently been proposed, but are usually calibrated on a single held-out split and rarely evaluated through the decisions they inform. We integrate three elements on the New Commercial Modular Aero-Propulsion System Simulation dataset from the National Aeronautics and Space Administration, where simulated turbofan engines run to failure under real flight profiles: engine-wise cross-validated calibration, a fleet-level adaptive update, and an inspection policy derived from the calibrated lower bound. A neural model of healthy operation predicts each sensor from flight conditions, and backward-looking features of its residuals feed a gradient-boosted quantile regressor. Sixty development engines form five groups; for each, the entire pipeline, including the healthy-engine model, is retrained without that group, so all sixty supply out-of-fold calibration errors, versus eleven reserved engines in the baseline. The ten percent miscoverage budget assigns three points to overestimation and seven to underestimation. Whenever an engine fails, the adaptive update corrects each tail's level by how often its true life fell outside the interval; results average thirty random failure orders. All thresholds are chosen on development engines; one design change, the boosting iteration count, followed a first look at test results. The thirty-nine official test engines are for evaluation; only the online update uses their outcomes. The test root mean squared error, 6.6 flights, is not significantly different from the baseline's 6.5. With adaptive updating in both, the share of lower bounds above the true remaining life drops from 4.7 to 1.9 percent and coverage moves from 88.2 to 93.5 percent, above the 90 percent target, with intervals five flights wider. An inspection is ordered when the static cross-validated lower bound falls below a development-chosen threshold, and is late if fewer than five flights remain, an assumed execution time. This yields one late inspection among thirty-nine engines and 44 percent less wasted useful life than a fixed-life schedule per flight class with equally few late inspections; a median-based rule performs comparably. Training only on short-flight engines raises the long-flight root mean squared error to 14.7 flights, against 9.3 with as many engines across flight classes. These results suggest that engine-wise calibration with adaptive updating curbs overestimation at the cost of wider intervals, and that inspection rules should be judged by operational consequences.
+\end{abstract}
+
+\noindent\textbf{Keywords:} remaining useful life, conformal prediction, uncertainty quantification, predictive maintenance, turbofan engines, N-CMAPSS, quantile regression, inspection scheduling
+
+% ----------------------------------------------------------------------------
+%  Paper completo (Round 2): las secciones van acá. Recomendado 6-10 páginas.
+%  Referencias con apacite: \bibliographystyle{apacite} \bibliography{phm2027}
+%  Desarrollar en el paper: el rediseño tras mirar la prueba (cvplus_v1_early_stopping),
+%  que la política con la mediana rinde parecido, que "equally few" vale con tau = 5,
+%  el IC sin ACI de la sobreestimación (-9,1 a -3,0 puntos) y citar a Robinson (2026)
+%  y Lövberg (2021) (ver estado_del_arte.md).
+% ----------------------------------------------------------------------------
+
+\end{document}

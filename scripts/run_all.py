@@ -16,7 +16,10 @@ Etapas, en orden:
   conformal  intervalos conformales adaptativos y métricas
   line2      experimento: vuelos cortos -> medianos/largos
   line3      experimento: detección temprana con change points
+  cv_fit     CatBoost por grupos de motores: modelo sano, residuos y variables propios de cada grupo
+  cv_eval    intervalos CV+, confianza por motor y política de inspección
   report     arma reports/informe_final.html con los resultados reales
+  entrega    arma reports/entrega_modelo.html: modelo final, resultados y límites
 """
 from __future__ import annotations
 
@@ -31,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.ncmapss.config import get_paths, load_config  # noqa: E402
 
 STAGES = ["prepare", "health", "residuals", "features", "eda", "catboost", "tft",
-          "conformal", "line2", "line3", "report"]
+          "conformal", "line2", "line3", "cv_fit", "cv_eval", "report", "entrega"]
 
 
 def run_stage(name: str, cfg: dict, paths, mode: str, workers: int) -> None:
@@ -61,13 +64,22 @@ def run_stage(name: str, cfg: dict, paths, mode: str, workers: int) -> None:
         uncertainty.run(cfg, paths)
     elif name == "line2":
         from src.ncmapss import line2_transfer
-        line2_transfer.run(cfg, paths, mode)
+        line2_transfer.run(cfg, paths, mode, workers)
     elif name == "line3":
         from src.ncmapss import line3_changepoint
         line3_changepoint.run(cfg, paths)
+    elif name == "cv_fit":
+        from src.ncmapss import cvplus
+        cvplus.run_fit(cfg, paths, mode, workers)
+    elif name == "cv_eval":
+        from src.ncmapss import cvplus
+        cvplus.run_eval(cfg, paths)
     elif name == "report":
         from src.ncmapss.report import build
         build.run(cfg, paths, mode)
+    elif name == "entrega":
+        from src.ncmapss.report import entrega
+        entrega.run(cfg, paths)
 
 
 def main() -> None:

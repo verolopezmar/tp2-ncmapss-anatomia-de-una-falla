@@ -22,6 +22,11 @@ def load(name: str = "eda", mode: str = "full") -> dict:
     return _CACHE[name]
 
 
+def output_path(filename: str, mode: str = "full"):
+    """Ruta a un archivo de outputs/<modo>/ (p. ej. cvplus_intervals.parquet)."""
+    return get_paths(load_config(), mode).outputs / filename
+
+
 def _plain(html: str) -> str:
     return re.sub(r"<i>|</i>", "_", re.sub(r"<b>|</b>", "**", html))
 

@@ -26,7 +26,7 @@ report:
 data:
   default_dir: C:\datos\ncmapss       # se usa sólo si no existe NCMAPSS_DATA_DIR
   file_glob: "N-CMAPSS_DS*.h5"
-  chunk_rows: 2000000                 # filas por bloque al leer los .h5 (cuida la RAM)
+  chunk_rows: 500000                  # filas por bloque al leer los .h5 (cuida la RAM)
   seconds_sample_frac: 0.02           # fracción de segundos que se guarda para EDA y modelo sano
   example_flight: {dataset: DS02, unit: 2, cycle: 1}    # vuelo usado para ilustrar un perfil (el mismo de la Parte I)
 
@@ -132,3 +132,16 @@ line3:                                # detección temprana (change point)
   cusum_h_grid: [1, 60, 120]          # umbrales candidatos del CUSUM (inicio, fin, cantidad)
   t48_z_grid: [0.5, 15, 120]          # umbrales candidatos para el residuo de T48
   pelt_penalty_grid: [1, 200, 120]    # penalidades candidatas de PELT
+
+# Profundización: CatBoost validado por motor con CV+ y política de inspección (src/ncmapss/cvplus.py).
+# Reglas fijadas antes de evaluar en prueba: método y umbrales se eligen sólo con motores de desarrollo.
+cvplus:
+  folds: 5                            # grupos de motores de desarrollo, estratificados por subconjunto
+  max_iterations: 1500                # iteraciones comunes: se elige por pinball fuera de grupo, sólo en desarrollo
+  iteration_step: 25
+  bootstrap: 5000                     # remuestreos de MOTORES para los intervalos de confianza
+  inspection:
+    lead_flights: 5                   # τ: vuelos necesarios para ejecutar una inspección ordenada
+    sensitivity_lead_flights: [3, 5, 10]
+    max_late_rate: 0.05               # tasa máxima de inspecciones tardías aceptada en desarrollo
+    h_grid: [0, 81, 1]                # umbrales H candidatos (inicio, fin, paso)

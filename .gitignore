@@ -22,11 +22,22 @@ data/
 archive*/
 *.h5
 *.parquet
+# ...salvo las salidas livianas del modelo final (~1 MB): las usan la notebook 04, cv_eval y entrega
+!outputs/full/*.parquet
 
 # --- Salidas pesadas o del modo rápido ---
 outputs/sample/
 outputs/*/models/
 reports/*_sample.html
+
+# --- Configuración local de Claude Code (agentes y permisos) ---
+.claude/settings.local.json
+
+# --- Archivos auxiliares de LaTeX ---
+paper_phm2027/*.aux
+paper_phm2027/*.log
+paper_phm2027/*.out
+paper_phm2027/*.synctex.gz
 
 # --- Sistema / editores ---
 .DS_Store

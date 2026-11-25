@@ -130,5 +130,6 @@
 .chapnav a.annex-link{border:1px dashed var(--line-2)}
 .chapter.compact{padding-top:clamp(70px,9vh,100px)}
 .takeaways.four{grid-template-columns:repeat(4,1fr)}
-@media (max-width:1020px){.takeaways.four{grid-template-columns:1fr 1fr}.parts{grid-template-columns:1fr 1fr}.big3,.cards3,.duo,.prof-box .rows{grid-template-columns:1fr}}
-@media (max-width:600px){.parts,.takeaways.four{grid-template-columns:1fr}}
+.parts.five{grid-template-columns:repeat(5,1fr)}
+@media (max-width:1020px){.parts.five{grid-template-columns:1fr 1fr}.takeaways.four{grid-template-columns:1fr 1fr}.parts{grid-template-columns:1fr 1fr}.big3,.cards3,.duo,.prof-box .rows{grid-template-columns:1fr}}
+@media (max-width:600px){.parts,.parts.five,.takeaways.four{grid-template-columns:1fr}}
