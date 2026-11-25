@@ -4,7 +4,7 @@ Calcula, a partir de los datos procesados, todas las figuras, tablas, cifras y l
 del EDA y las guarda en outputs/<modo>/eda.json. El notebook 01_eda.ipynb y el informe
 HTML leen ese archivo: ningún número está escrito a mano.
 
-Secciones (mismo recorrido que compartir.html, ampliado):
+Secciones (mismo recorrido que la Parte I, ampliado):
   1 dataset    estructura, volumen, calidad, faltantes y verificaciones de consistencia
   2 vuelo      perfil de un vuelo, envolvente, clases de vuelo corto / mediano / largo
   3 contexto   cuánto del sensor explica el vuelo, correlaciones, residuos

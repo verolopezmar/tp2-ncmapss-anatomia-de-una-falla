@@ -1,0 +1,1452 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anatomía de una falla</title>
+<meta name="description" content="Presentación del TP2 de Laboratorio II: EDA y modelado del dataset NASA N-CMAPSS (vida útil remanente de motores turbofan).">
+<!--
+  Presentación del TP2 · Laboratorio II · NASA N-CMAPSS.
+  Todas las cifras y series salen de outputs/full/*.json y de reports/informe_final.html.
+  Atajos: ← → espacio (avanzar) · O / Esc (vista general) · E (vista explotada del motor)
+          N (notas) · F (pantalla completa) · ? (ayuda).
+  Estética: DESIGN.md (Inter como sustituto de PPNeueMontreal).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --void:#000000; --white:#ffffff; --ash:#9a9a9a; --mist:#bdbdbd;
+  --iris:#8052ff; --amber:#ffb829; --verdant:#15846e; --verdant-l:#1fb393;
+  --font:"Inter","PPNeueMontreal",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--void);color:var(--white);font-family:var(--font);
+  font-feature-settings:"ss01" on;-webkit-font-smoothing:antialiased;overflow:hidden}
+#ambient{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#viewport{position:fixed;inset:0;z-index:1;touch-action:pan-y}
+.stage{position:absolute;left:50%;top:50%;width:1440px;height:810px;transform-origin:center center}
+
+/* ── Slides ───────────────────────────────────────────── */
+.slide{position:absolute;inset:0;padding:64px 80px 84px;opacity:0;visibility:hidden;transform:translateY(14px);
+  transition:opacity .6s ease,transform .6s ease,visibility 0s linear .6s}
+body.init .slide{transition:none !important}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .6s ease,transform .6s ease,visibility 0s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:72px;height:100%;align-items:center}
+.grid.g56{grid-template-columns:5fr 6fr}
+.grid.g65{grid-template-columns:6fr 5fr}
+.grid.rev .text{order:2}
+.grid.rev .vis{order:1}
+.text{position:relative;z-index:2}
+.vis{position:relative;height:100%;display:flex;align-items:center;justify-content:center;z-index:1}
+.vis.col{flex-direction:column;align-items:stretch;justify-content:center;gap:14px}
+.vis canvas.engine,.vis img.engine-print{position:absolute;inset:0;width:100%;height:100%}
+canvas.engine{pointer-events:none}
+canvas.engine.live{pointer-events:auto;cursor:grab;touch-action:none}
+canvas.engine.live:active{cursor:grabbing}
+img.engine-print{display:none;object-fit:contain}
+.eng-box{position:relative;flex:1 1 auto;min-height:300px}
+
+/* ── Tipografía ───────────────────────────────────────── */
+.label{font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--amber);margin:0 0 24px;line-height:1.2}
+h1,h2{font-weight:400;letter-spacing:-.04em;line-height:1.1;margin:0}
+h1{font-size:113px}
+h2{font-size:78px}
+.body{font-size:18px;font-weight:200;line-height:1.5;color:var(--white);max-width:480px;margin:30px 0 0}
+.body b{font-weight:400}
+.num{font-weight:400;letter-spacing:-.04em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.num.xl{font-size:113px}
+.num.lg{font-size:78px}
+.num.md{font-size:54px}
+.num .u{font-size:.42em;letter-spacing:-.02em;margin-left:.08em}
+.amber{color:var(--amber)}
+.iris{color:var(--iris)}
+.mistc{color:var(--mist)}
+.cap{font-size:18px;font-weight:200;color:var(--mist);line-height:1.4;margin-top:10px;max-width:440px}
+.small{font-size:14px;font-weight:400;color:var(--ash);line-height:1.5}
+.arrow{color:var(--ash);font-weight:200;margin:0 .18em}
+
+.rows{display:flex;flex-direction:column;gap:30px;width:100%}
+.row{display:grid;grid-template-columns:200px 1fr;gap:28px;align-items:baseline}
+.row .k{font-size:42px;letter-spacing:-.04em;font-weight:400;line-height:1}
+.row .v{font-size:18px;font-weight:200;line-height:1.45;color:var(--white)}
+.row .v span{color:var(--mist)}
+.row.txt{grid-template-columns:150px 1fr}
+.row.txt .k{font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--amber);line-height:1.6}
+
+.stats4{display:grid;grid-template-columns:1fr 1fr;gap:44px 56px;position:relative;z-index:2}
+.stats4 .cap{margin-top:8px}
+.stack{display:flex;flex-direction:column;gap:22px;margin-top:36px}
+.stack .s .cap{margin:6px 0 0}
+.pair{display:flex;gap:64px;margin-top:40px;align-items:flex-end}
+
+.team{margin-top:56px;font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--ash);line-height:1.9}
+.team span{color:var(--white);text-transform:none;letter-spacing:0;font-size:18px;display:block;font-weight:200}
+.team span i{font-style:normal;white-space:nowrap}
+
+/* ── Controles (sin contenedores) ─────────────────────── */
+.toggles{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+.tg{background:none;border:0;padding:6px 0;margin:0;font:600 14px/1.2 var(--font);letter-spacing:.025em;text-transform:uppercase;
+  color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.tg:hover{color:var(--white)}
+.tg.on{color:var(--white);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:7px}
+.tg .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.tg.off .dot{opacity:.25}
+.pill{background:var(--iris);color:#fff;border:0;border-radius:24px;padding:13px 18px;font:600 14px/1 var(--font);
+  letter-spacing:.025em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:4px}
+.ctrl{display:flex;align-items:center;gap:20px}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:22px;background:transparent;cursor:pointer;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--ash)}
+input[type=range]::-moz-range-track{height:2px;background:var(--ash)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--iris);margin-top:-7px;border:0}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--iris);border:0}
+
+/* Etiqueta de componente del motor */
+.eng-label{position:absolute;left:0;top:0;transform:translate(-50%,-100%);pointer-events:none;z-index:4;opacity:0;
+  transition:opacity .25s ease;background:rgba(0,0,0,.78);padding:8px 10px;max-width:300px;text-align:left}
+.eng-label.show{opacity:1}
+.eng-label .n{font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--amber)}
+.eng-label .s{font-size:18px;font-weight:400;color:#fff;margin-top:4px;letter-spacing:-.01em}
+.eng-label .d{font-size:14px;font-weight:300;color:var(--mist);margin-top:2px;line-height:1.35}
+.eng-label .g{font-size:12px;font-weight:400;color:var(--ash);margin-top:4px}
+
+/* Charts */
+svg.chart{width:100%;height:auto;overflow:visible;font-family:var(--font);display:block}
+svg.chart text{font-size:14px;fill:var(--ash);font-weight:400}
+svg.chart text.t{fill:var(--white);font-size:16px;font-weight:300}
+svg.chart text.v{fill:var(--white);font-size:22px;font-weight:400;letter-spacing:-.02em}
+svg.chart text.h{font-weight:600;letter-spacing:.025em;text-transform:uppercase}
+svg.chart .axis{stroke:var(--ash);stroke-width:1;opacity:.55}
+svg.chart .fade{transition:opacity .4s ease}
+svg.chart rect.bar{transition:fill .5s ease}
+.engine-cap{font-size:14px;color:var(--ash);font-weight:400}
+.engine-cap b{color:var(--amber);font-weight:600;letter-spacing:.025em}
+
+/* ── Animaciones de entrada (escalonadas, < 1 s) ───────── */
+@keyframes rise{from{opacity:0;transform:translateY(12px)}}
+.slide.entering .text > *,.slide.entering .rows > *,.slide.entering .stats4 > *,.slide.entering .stack > *,.slide.entering .pair > *{
+  animation:rise .5s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 65ms)}
+
+/* ── HUD, notas, ayuda, vista general ─────────────────── */
+.hud{position:absolute;left:80px;right:80px;bottom:30px;display:flex;justify-content:space-between;align-items:center;
+  font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--ash);z-index:5;pointer-events:none}
+.hud .hint{font-weight:400;text-transform:none;letter-spacing:0;transition:opacity .8s}
+.hud .hint.gone{opacity:0}
+#progress{position:fixed;left:0;top:0;height:2px;background:var(--iris);width:0;z-index:6;transition:width .5s ease}
+#notes{position:fixed;left:0;right:0;bottom:0;max-height:38vh;overflow:auto;background:rgba(0,0,0,.94);z-index:8;
+  padding:22px max(24px,calc(50vw - 640px)) 26px;font-size:17px;font-weight:300;line-height:1.55;color:var(--mist);
+  transform:translateY(100%);transition:transform .35s ease}
+#notes.show{transform:none}
+#notes .label{margin-bottom:10px}
+#notes p{margin:0 0 .6em}
+#notes b{color:var(--white);font-weight:400}
+aside.notes{display:none}
+#help{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center}
+#help.show{display:flex}
+#help .in{width:min(640px,90vw)}
+#help h3{font-size:42px;font-weight:400;letter-spacing:-.04em;margin:0 0 30px}
+#help dl{display:grid;grid-template-columns:150px 1fr;gap:12px 24px;margin:0}
+#help dt{font-size:14px;font-weight:600;letter-spacing:.025em;text-transform:uppercase;color:var(--amber)}
+#help dd{margin:0;font-size:18px;font-weight:200}
+#help .small{margin-top:30px}
+body.overview .slide{opacity:1 !important;visibility:visible !important;transform-origin:0 0;cursor:pointer;
+  transition:transform .45s cubic-bezier(.2,.7,.2,1),opacity .3s !important}
+body.overview .slide > *{pointer-events:none}
+body.overview .slide:not(.active){opacity:.5 !important}
+body.overview .slide:hover{opacity:1 !important}
+body.overview .slide::after{content:attr(data-n);position:absolute;left:80px;bottom:30px;font:600 64px var(--font);color:var(--ash)}
+body.overview .slide.active::after{color:var(--iris)}
+body.overview canvas.engine,body.overview .eng-label,body.overview .hud{visibility:hidden}
+body.overview img.engine-print{display:block}
+body.overview .slide *{animation:none !important}
+
+@media (prefers-reduced-motion: reduce){
+  .slide,.slide.active{transition:opacity .25s linear,visibility 0s;transform:none}
+  .slide.entering *{animation:none !important}
+  #progress,#notes{transition:none}
+}
+
+/* ── Impresión: una slide por página, estado final, fondo negro ── */
+@media print{
+  @page{size:1440px 810px;margin:0}
+  html,body{overflow:visible;height:auto;background:#000 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #ambient,#progress,#notes,#help,.hud,canvas.engine,.eng-label,.toggles,.ctrl,.pill{display:none !important}
+  img.engine-print{display:block !important}
+  #viewport{position:static}
+  .stage{position:static;transform:none !important;width:1440px;height:auto}
+  .slide{position:relative;width:1440px;height:810px;opacity:1 !important;visibility:visible !important;transform:none !important;
+    transition:none !important;break-after:page;page-break-after:always;background:#000;overflow:hidden}
+  .slide *{animation:none !important}
+  .slide::after{display:none}
+}
+</style>
+</head>
+<body>
+<canvas id="ambient" aria-hidden="true"></canvas>
+<div id="progress"></div>
+
+<div id="viewport">
+<main class="stage" id="stage">
+
+<!-- 01 · PORTADA ───────────────────────────────────────── -->
+<section class="slide" id="s-portada">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">Laboratorio II · TP2 · NASA N-CMAPSS</p>
+      <h1>Anatomía de una falla</h1>
+      <p class="body">Cuántos vuelos le quedan a un motor turbofan, con qué certeza y cuándo inspeccionarlo.</p>
+      <div class="team">Integrantes
+        <span><i>López Marsico Verónica</i> · <i>Acciardi Juan</i> · <i>Naón Pedro</i> · <i>Giannice Agustín</i></span>
+      </div>
+    </div>
+    <div class="vis" style="margin-right:-80px;margin-left:-40px"><canvas class="engine ix" data-variant="hero"></canvas></div>
+  </div>
+  <aside class="notes">
+    <p>Parte II del trabajo: el <b>EDA del dataset NASA N-CMAPSS</b> y el modelo propuesto, respondiendo a las tres líneas de investigación de la devolución del profesor.</p>
+    <p>Cuatro secciones: (1) el problema y el EDA, (2) Línea 1 · vida útil con incertidumbre, (3) Línea 2 · generalizar entre tipos de vuelo, (4) Línea 3 · detección temprana y cierre.</p>
+    <p>El motor se puede girar arrastrando y, al pasar el mouse, muestra cada componente. <b>E</b> lo separa en piezas.</p>
+  </aside>
+</section>
+
+<!-- 02 · S1 · EL PROBLEMA ─────────────────────────────── -->
+<section class="slide" id="s-problema">
+  <div class="grid">
+    <div class="text">
+      <p class="label">01 · El problema y el dataset</p>
+      <h2>¿Cuántos vuelos le quedan?</h2>
+      <p class="body">La vida útil remanente (RUL) es la vida total menos el número de vuelo. Predecirla permite inspeccionar antes de la falla.</p>
+    </div>
+    <div class="vis">
+      <canvas class="engine" data-variant="faint"></canvas>
+      <div class="stats4">
+        <div><div class="num lg">99</div><div class="cap">motores simulados hasta la falla</div></div>
+        <div><div class="num lg">7.473</div><div class="cap">vuelos completos</div></div>
+        <div><div class="num lg">69,9<span class="u">M</span></div><div class="cap">registros, uno por segundo</div></div>
+        <div><div class="num lg">14</div><div class="cap">sensores físicos</div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>NASA N-CMAPSS</b> (Arias Chao et al., 2021): motores turbofan simulados con perfiles de vuelos reales hasta la falla.</p>
+    <p>9 subconjuntos (DS01 … DS08c), 99 motores, 7.473 vuelos, 69,9 millones de segundos (≈ 19.417 h). Un vuelo dura 2,6 h en promedio; cada motor vive entre 48 y 100 vuelos.</p>
+    <p>Calidad: 0 nulos en 3.005.712.943 celdas, 0 infinitos, vuelos numerados sin huecos, RUL coherente en el 100 % de los vuelos. <b>DS08d</b> viene truncado en Kaggle y quedó afuera: se usan 9 de 10 archivos.</p>
+  </aside>
+</section>
+
+<!-- 03 · ANATOMÍA DEL MOTOR ───────────────────────────── -->
+<section class="slide" id="s-anatomia">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">01 · El motor</p>
+      <h2>Dónde mira cada sensor</h2>
+      <p class="body">Pasá el mouse por cada componente para ver qué se mide ahí. Arrastrá para girarlo.</p>
+      <div class="ctrl" style="margin-top:36px"><button class="pill ix" id="btn-explode">Vista explotada · E</button></div>
+    </div>
+    <div class="vis" style="margin-right:-80px"><canvas class="engine ix" data-variant="anatomy"></canvas></div>
+  </div>
+  <aside class="notes">
+    <p>Los 14 sensores físicos, según el componente (Arias Chao et al., 2021): <b>Fan</b> P2, P21, P15 (bypass), Nf · <b>LPC</b> T24, P24 · <b>HPC</b> T30, Ps30, Nc · <b>Cámara de combustión</b> Wf, P40 · <b>HPT</b> T48 · <b>LPT</b> T50, P50.</p>
+    <p>Dónde está la falla en cada subconjunto: fan en DS04; LPC en DS06; HPC en DS05 y DS06; HPT en DS01, DS02 y DS03; LPT en DS02, DS03 y DS07; DS08a y DS08c combinan los cinco.</p>
+    <p>Si nadie toca nada, el motor recorre los componentes solo.</p>
+  </aside>
+</section>
+
+<!-- 04 · EL VUELO TAPA EL DESGASTE ────────────────────── -->
+<section class="slide" id="s-tapa">
+  <div class="grid">
+    <div class="text">
+      <p class="label">EDA · Hallazgo 1</p>
+      <h2>El vuelo tapa el desgaste</h2>
+      <div class="num xl" style="margin-top:40px">99,998<span class="u">%</span></div>
+      <p class="cap">de cada sensor lo explican cuatro condiciones de vuelo: altitud, Mach, potencia y temperatura de entrada.</p>
+    </div>
+    <div class="vis"><div id="ch-t48" style="width:100%"></div></div>
+  </div>
+  <aside class="notes">
+    <p>Mediana de los sensores físicos, en motores sanos que el modelo no vio. En T48 (temperatura entre turbinas) queda sin explicar un 0,016 %: <b>ahí adentro está el desgaste</b>.</p>
+    <p>T48 sigue a la potencia (r = 0,84 con TRA). A igual potencia, cada 10.000 ft de altura la bajan unos 102 °R. Dos vuelos distintos no se pueden comparar directamente.</p>
+    <p>En T48, el desgaste de toda la vida suma <b>+29 °R</b>, contra variaciones de <b>±123 °R</b> dentro de un mismo vuelo. Además, 118 de 496 pares de variables tienen |r| &gt; 0,95: mucha información repetida.</p>
+  </aside>
+</section>
+
+<!-- 05 · RESIDUOS ─────────────────────────────────────── -->
+<section class="slide" id="s-residuos">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">EDA · Hallazgo 2</p>
+      <h2>Descontar el vuelo</h2>
+      <div class="num lg" style="margin-top:40px">−0,42<span class="arrow">→</span><span class="amber">−0,99</span></div>
+      <p class="cap">Correlación de T48 con el RUL, antes y después de restar lo que esperaría un motor sano.</p>
+    </div>
+    <div class="vis col">
+      <div class="toggles ix" data-for="norm"><button class="tg" data-v="raw">T48 medido</button><button class="tg on" data-v="res">Residuo</button></div>
+      <div id="ch-norm"></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Modelo de motor sano:</b> una red chica predice cada sensor desde altitud, Mach, potencia y temperatura de entrada, entrenada sólo con vuelos sanos de motores de entrenamiento. <b>Residuo = medido − esperado.</b></p>
+    <p>En el ejemplo (motor 1 de DS01), T48 medido casi no se relaciona con la vida restante (ρ = −0,42); el residuo sí (ρ = −0,99). La línea punteada marca dónde empieza la degradación anormal.</p>
+    <p>El gráfico pasa solo de "medido" a "residuo"; con los botones se puede volver a comparar.</p>
+  </aside>
+</section>
+
+<!-- 06 · DECISIONES ───────────────────────────────────── -->
+<section class="slide" id="s-decisiones">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">EDA · Decisiones</p>
+      <h2>Lo que el EDA decidió</h2>
+      <p class="body">Cada hallazgo se convirtió en una decisión de modelado.</p>
+    </div>
+    <div class="vis">
+      <div class="rows">
+        <div class="row"><div class="k amber">31 %</div><div class="v">de la vida es sana, casi sin señal. <span>→ Intervalos que se adaptan cerca y lejos de la falla.</span></div></div>
+        <div class="row"><div class="k">48–100</div><div class="v">vuelos de vida por motor. <span>→ Partición por motor completo, nunca por vuelo.</span></div></div>
+        <div class="row"><div class="k">70 vs 86</div><div class="v">vuelos de vida: vuelos largos contra cortos. <span>→ La clase de vuelo es una variable (y la Línea 2).</span></div></div>
+        <div class="row"><div class="k">99 %</div><div class="v">de los vuelos extremos está en la etapa degradada. <span>→ No se eliminan: son la señal.</span></div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>El desgaste tiene dos etapas: primero lento y casi lineal, después cada vez más rápido. Los motores están sanos sólo el 31 % de su vida, en promedio.</p>
+    <p>Otras decisiones: trabajar con residuos; restar a cada motor su propia línea base (primeros vuelos) y usar medias y pendientes móviles; sólo hay 554 perfiles de vuelo reutilizados, y el perfil explica el 25 % del ruido del residuo de T48.</p>
+    <p>El score de NASA castiga más sobreestimar la vida → intervalos conformales asimétricos. Los sensores virtuales y los parámetros de salud no existen en un avión real: sólo se usan para el EDA.</p>
+  </aside>
+</section>
+
+<!-- 07 · S2 · LÍNEA 1 ─────────────────────────────────── -->
+<section class="slide" id="s-linea1">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">02 · Línea 1 · Vida útil con incertidumbre</p>
+      <h2>CatBoost le ganó al TFT</h2>
+      <div class="pair">
+        <div><div class="num xl">6,51</div><div class="cap">CatBoost</div></div>
+        <div><div class="num xl mistc">7,48</div><div class="cap">Temporal Fusion Transformer</div></div>
+      </div>
+      <p class="cap" style="margin-top:22px">RMSE en vuelos, en los 39 motores de prueba oficiales de NASA.</p>
+    </div>
+    <div class="vis"><canvas class="engine" data-variant="dim"></canvas></div>
+  </div>
+  <aside class="notes">
+    <p><b>Método:</b> residuos → variables que sólo miran hacia atrás → CatBoost multi-cuantil y TFT (cuantiles 5 / 50 / 95 %) → intervalos conformales (CQR asimétrico, CQR por tramos y ACI de flota).</p>
+    <p><b>Partición por motor:</b> 40 de entrenamiento, 9 de validación, 11 de calibración, 39 de prueba (los oficiales de NASA).</p>
+    <p>Score NASA: CatBoost 0,646 · TFT 0,849. CatBoost se eligió por el score NASA en validación (0,992 contra 1,138), sin mirar la prueba. Con los mismos motores, el TFT tiene entre 0,36 y 1,56 vuelos más de RMSE (IC 95 %).</p>
+    <p>Por qué ganó: pocos datos para un modelo grande (40 motores, 2.948 vuelos, para un TFT de 144.067 parámetros) y las variables ya resumen la historia. Pero cerca de la falla (RUL 0–9) el TFT es mejor: RMSE 2,4 contra 3,4.</p>
+    <p>Esto es la etapa 1 (11 motores de calibración). El modelo final, dos slides más adelante, recalibra con validación cruzada sobre los 60 motores de desarrollo.</p>
+  </aside>
+</section>
+
+<!-- 08 · EL MODELO EN ACCIÓN ──────────────────────────── -->
+<section class="slide" id="s-accion">
+  <div class="grid rev g65">
+    <div class="text">
+      <p class="label">Línea 1 · El modelo en acción</p>
+      <h2>Un intervalo, no un número</h2>
+      <p class="body">Vuelo a vuelo, el modelo da una predicción y un rango del 90 %. Para planificar se usa la <b>cota inferior</b>.</p>
+      <div class="ctrl" style="margin-top:36px"><button class="pill ix" id="btn-eng-play">▶ Recorrer el motor</button></div>
+    </div>
+    <div class="vis"><div id="ch-eng" style="width:100%"></div></div>
+  </div>
+  <aside class="notes">
+    <p>Motor de prueba DS01 · motor 09, nunca visto en el entrenamiento. Línea violeta: predicción de CatBoost. Banda: intervalo del 90 % (ACI). Línea ámbar punteada: RUL real. Línea verde: cota inferior del intervalo.</p>
+    <p>Pasando el mouse por el gráfico se lee cada vuelo; el botón lo recorre solo. Cerca de la falla el intervalo se angosta.</p>
+  </aside>
+</section>
+
+<!-- 09 · CALIBRAR ─────────────────────────────────────── -->
+<section class="slide" id="s-calibrar">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">Línea 1 · Calibrar</p>
+      <h2>La incertidumbre se calibra</h2>
+      <div class="num lg" style="margin-top:40px"><span class="mistc">77,6</span><span class="arrow">→</span>88,2<span class="u">%</span></div>
+      <p class="cap">de los vuelos con el RUL real dentro del intervalo (objetivo 90 %), con un ancho medio de 18,8 vuelos.</p>
+    </div>
+    <div class="vis col">
+      <div class="toggles ix" data-for="cov"><button class="tg" data-v="raw">Sin calibrar</button><button class="tg on" data-v="aci">Conformal adaptativo (ACI)</button></div>
+      <div id="ch-cov"></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>Los cuantiles que da el modelo por sí solo cubren el 77,6 %: la incertidumbre del modelo es optimista. CQR asimétrico global: 86,1 %. CQR por tramos: 87,1 %. <b>ACI de flota</b>, que se reajusta cada vez que un motor falla: 88,2 %.</p>
+    <p>Lo que más importa es el tramo cercano a la falla (RUL 0–9): pasa de 48,5 % a 95,4 %. Las rayitas grises marcan la cobertura sin calibrar.</p>
+    <p>¿Por qué no llega al 90 %? Se calibra con sólo 11 motores; los vuelos de un mismo motor están muy correlacionados, así que la muestra efectiva es chica, y la garantía conformal supone datos intercambiables.</p>
+  </aside>
+</section>
+
+<!-- 10 · COTA INFERIOR ────────────────────────────────── -->
+<section class="slide" id="s-cota">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">Línea 1 · Resultado</p>
+      <h2>Planificar con la cota inferior</h2>
+      <p class="body">Sobreestimar la vida es el error caro. Con la cota inferior pasa de ser lo común a ser raro, a cambio de inspeccionar algunos vuelos antes.</p>
+    </div>
+    <div class="vis col">
+      <div class="toggles ix" data-for="cota"><button class="tg" data-v="pred">Predicción puntual</button><button class="tg on" data-v="lo">Cota inferior</button></div>
+      <div><div class="num xl iris" id="cota-num" data-nocount>4,7<span class="u">%</span></div>
+        <div class="cap" id="cota-cap">de los vuelos de prueba: la cota inferior queda por encima del RUL real (con la predicción puntual, 52 %).</div></div>
+      <div id="ch-cota" style="margin-top:18px"></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>En los 2.899 vuelos de los 39 motores de prueba, la mediana sobreestima en el 52 % (52,4 %); la cota inferior del intervalo ACI, sólo en el 4,7 %. Es el valor recomendable para programar inspecciones.</p>
+    <p>La tira de abajo muestra un motor concreto (DS01 · motor 09): cada rayita es un vuelo; en ámbar, los vuelos en los que el valor usado supera el RUL real.</p>
+    <p>La tolerancia fijada para la cola de sobreestimación es del 3 % (α asimétrico: 3 % abajo, 7 % arriba).</p>
+  </aside>
+</section>
+
+<!-- 11 · MODELO FINAL · CV+ ──────────────────────────── -->
+<section class="slide" id="s-cvplus">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">Línea 1 · Modelo final</p>
+      <h2>60 motores para calibrar</h2>
+      <p class="body">Validación cruzada por motor, intervalos CV+ asimétricos y ACI de flota.</p>
+      <div class="stack">
+        <div class="s"><div class="num md iris">1,9 %</div><div class="cap">de los vuelos de prueba con la cota inferior por encima del RUL real (etapa 1: 4,7 %).</div></div>
+        <div class="s"><div class="num md">6,61</div><div class="cap">RMSE en vuelos: sin diferencia significativa con la etapa 1 (6,51).</div></div>
+      </div>
+    </div>
+    <div class="vis col">
+      <div class="toggles ix" data-for="cv"><button class="tg on" data-v="4">Sobreestima</button><button class="tg" data-v="3">Cobertura</button><button class="tg" data-v="5">Ancho</button></div>
+      <div id="ch-cv"></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Modelo final</b> (README y outputs/full/cvplus.json): los 60 motores de desarrollo se dividen en 5 grupos estratificados por subconjunto; en cada grupo se reentrena todo el pipeline (modelo sano, residuos y CatBoost) sin esos motores y se predice sobre ellos. Así los 60 aportan errores fuera de muestra para calibrar, en lugar de 11 reservados. 200 iteraciones comunes.</p>
+    <p>Intervalos CV+ asimétricos (objetivo 90 %: 3 % de tolerancia para sobreestimar, 7 % para subestimar) y ACI de flota, que corrige cada cola cuando un motor falla.</p>
+    <p>En los 39 motores de prueba: sin ACI, la sobreestimación de la cota inferior baja de 7,0 % a 1,1 % (diferencia entre −9,1 y −3,0 puntos, IC 95 %); con ACI, de 4,7 % a 1,9 % y la cobertura de 88,2 % a 93,5 %, con intervalos 5 vuelos más anchos. El RMSE no cambia de forma significativa (diferencia entre −0,35 y +0,56 vuelos).</p>
+  </aside>
+</section>
+
+<!-- 12 · POLÍTICA DE INSPECCIÓN ───────────────────────── -->
+<section class="slide" id="s-inspeccion">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">Línea 1 · Política de inspección</p>
+      <h2>Cuándo inspeccionar</h2>
+      <p class="body">Se inspecciona en el primer vuelo en que la cota inferior baja de un umbral elegido en desarrollo. Ejecutarla lleva τ = 5 vuelos (supuesto nuestro).</p>
+      <div class="stack">
+        <div class="s"><div class="num md iris">44 %</div><div class="cap">menos vida desperdiciada que con una vida fija por clase de vuelo.</div></div>
+        <div class="s"><div class="num md">1</div><div class="cap">inspección tardía en 39 motores, igual que la vida fija.</div></div>
+      </div>
+    </div>
+    <div class="vis"><div id="ch-insp" style="width:100%"></div></div>
+  </div>
+  <aside class="notes">
+    <p>Umbral H elegido en desarrollo para no superar 5 % de inspecciones tardías (tardía = quedan menos de τ = 5 vuelos al inspeccionar).</p>
+    <p>Con la cota inferior CV+: 8,9 vuelos de vida desperdiciada por motor, contra 15,9 de una vida fija por clase de vuelo: 44 % menos, un ahorro de 3,9 a 10,1 vuelos por motor (IC 95 %, remuestreando motores), con la misma cantidad de tardías. Una regla equivalente sobre la mediana rinde parecido: 9,2 vuelos.</p>
+  </aside>
+</section>
+
+<!-- 13 · S3 · LÍNEA 2 ─────────────────────────────────── -->
+<section class="slide" id="s-linea2">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">03 · Línea 2 · Generalizar entre tipos de vuelo</p>
+      <h2>De vuelos cortos a largos</h2>
+      <p class="body">Entrenamos sólo con vuelos cortos y evaluamos en motores de vuelos largos.</p>
+      <div class="stack">
+        <div class="s"><div class="num md amber">+5,4</div><div class="cap">vuelos de error por no haber visto vuelos largos.</div></div>
+        <div class="s"><div class="num md mistc">+1,6</div><div class="cap">por tener menos datos.</div></div>
+      </div>
+    </div>
+    <div class="vis"><div id="ch-l2" style="width:100%"></div></div>
+  </div>
+  <aside class="notes">
+    <p>RMSE de CatBoost en motores de prueba de vuelos largos según con qué se entrenó: todas las clases (60 motores) 7,69; control con la misma cantidad de motores que sólo cortos (14, todas las clases) 9,29; sólo vuelos cortos (14 motores) 14,66.</p>
+    <p>Con sensores crudos en lugar de residuos, sólo cortos: 18,58. Con un modelo sano general (que vio todas las clases): 16,87, no mejora a 14,66.</p>
+    <p><b>Lo que más pesa es el tipo de vuelo, no la cantidad de datos.</b></p>
+  </aside>
+</section>
+
+<!-- 12 · QUÉ FALTARÍA L2 ──────────────────────────────── -->
+<section class="slide" id="s-l2futuro">
+  <div class="grid">
+    <div class="text">
+      <p class="label">Línea 2 · Qué faltaría</p>
+      <h2>Separar el desgaste de la ruta</h2>
+      <p class="body">Descontar las condiciones de vuelo no alcanza: cada clase de vuelo también desgasta distinto.</p>
+    </div>
+    <div class="vis">
+      <canvas class="engine" data-variant="faint"></canvas>
+      <div class="rows" style="position:relative;z-index:2">
+        <div class="row txt"><div class="k">DANN</div><div class="v">Rasgos de desgaste que no delatan la ruta.</div></div>
+        <div class="row txt"><div class="k">PatchTST</div><div class="v">La señal segundo a segundo, en lugar de promedios por vuelo.</div></div>
+        <div class="row txt"><div class="k">Transfer</div><div class="v">Ajustar con pocos motores del tipo de vuelo nuevo.</div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Domain-Adversarial Neural Networks:</b> predecir el RUL mientras un discriminador intenta adivinar la clase de vuelo.</p>
+    <p><b>PatchTST:</b> Transformer sobre parches de la señal cruda de cada vuelo; capta los transitorios de cada régimen.</p>
+    <p><b>Transfer learning:</b> preentrenar con vuelos cortos y ajustar con pocos motores de vuelos largos. ¿Cuántos hacen falta?</p>
+  </aside>
+</section>
+
+<!-- 13 · S4 · LÍNEA 3 · LÍNEA DE TIEMPO ───────────────── -->
+<section class="slide" id="s-linea3">
+  <div class="grid rev">
+    <div class="text">
+      <p class="label">04 · Línea 3 · Detección temprana</p>
+      <h2>Ver el desgaste temprano</h2>
+      <div class="stack">
+        <div class="s"><div class="num md">6</div><div class="cap">vuelos de demora (mediana) después del inicio real.</div></div>
+        <div class="s"><div class="num md amber">3,8 %</div><div class="cap">del desgaste ocurrido al avisar.</div></div>
+        <div class="s"><div class="num md">43</div><div class="cap">vuelos de margen hasta la falla, sin usar el RUL.</div></div>
+      </div>
+    </div>
+    <div class="vis col">
+      <div class="eng-box"><canvas class="engine" data-variant="degrade"></canvas></div>
+      <div id="ch-tl"></div>
+      <div class="ctrl ix">
+        <button class="pill" id="btn-tl-play">▶ Reproducir</button>
+        <input type="range" id="tl-range" min="1" max="67" value="67" aria-label="Vuelo">
+      </div>
+      <div class="engine-cap" id="tl-cap"><b>HPT · LPT</b></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p><b>Índice de salud:</b> distancia de los 14 residuos a la nube de vuelos sanos (un número por vuelo). <b>CUSUM online:</b> acumula excesos y avisa al superar un umbral calibrado en motores de desarrollo para ≤ 10 % de falsas alarmas.</p>
+    <p>Ejemplo real: DS02 · motor 15 (prueba), 67 vuelos. La degradación empieza en el vuelo 24 y el CUSUM avisa en el 30. Al mover el vuelo, las partículas de las turbinas (HPT y LPT, los componentes que fallan en DS02) se apagan según el índice de salud de ese vuelo: la imagen es ilustrativa, la curva es real.</p>
+    <p>En los 39 motores de prueba: avisa 6 vuelos después del inicio real (mediana), con el 3,8 % del desgaste ocurrido y 43 vuelos de margen hasta la falla.</p>
+  </aside>
+</section>
+
+<!-- 14 · DETECTORES ───────────────────────────────────── -->
+<section class="slide" id="s-detectores">
+  <div class="grid rev g65">
+    <div class="text">
+      <p class="label">Línea 3 · Tres detectores</p>
+      <h2>Cuándo avisa cada uno</h2>
+      <p class="body">El CUSUM detecta los 39 motores de prueba. Mirar sólo T48 avisa más tarde y se le escapan motores.</p>
+      <p class="small" style="margin-top:36px">Qué faltaría · Transformers auto-supervisados · Masked Autoencoders · detección de cambios bayesiana</p>
+    </div>
+    <div class="vis col">
+      <div class="toggles ix" data-for="l3" data-multi="1">
+        <button class="tg on" data-v="CUSUM online"><span class="dot" style="background:#8052ff"></span>CUSUM</button>
+        <button class="tg on" data-v="PELT offline"><span class="dot" style="background:#1fb393"></span>PELT</button>
+        <button class="tg on" data-v="Umbral sobre T48"><span class="dot" style="background:#ffb829"></span>Umbral T48</button>
+      </div>
+      <div id="ch-l3"></div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>Cada punto es un motor de prueba; 0 = inicio real de la degradación, a la derecha = alarma tardía. Con los botones se prende y apaga cada detector; pasando el mouse por un punto se ve su demora.</p>
+    <p><b>CUSUM online:</b> 100 % detectados, 10,3 % de alarmas antes del inicio real, demora mediana 6. <b>PELT offline</b> (necesita la serie completa, no sirve en tiempo real): demora 4, pero 25,6 % de alarmas antes. <b>Umbral sobre T48:</b> 94,9 % detectados, 15,4 % antes, demora 7.</p>
+    <p>Próximos pasos de la línea: aprender el índice de salud con Transformers auto-supervisados y Masked Autoencoders sobre la señal segundo a segundo, y combinarlo con detección de cambios bayesiana online para dar alarmas con una probabilidad asociada.</p>
+  </aside>
+</section>
+
+<!-- 15 · CONCLUSIONES ─────────────────────────────────── -->
+<section class="slide" id="s-conclusiones">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">Cierre</p>
+      <h2>Qué nos llevamos</h2>
+    </div>
+    <div class="vis">
+      <div class="rows">
+        <div class="row"><div class="k amber">−0,99</div><div class="v">El desgaste existe, pero hay que destaparlo: descontar el vuelo.</div></div>
+        <div class="row"><div class="k amber">1,9 %</div><div class="v">Con el modelo final, la cota inferior casi nunca sobreestima la vida.</div></div>
+        <div class="row"><div class="k amber">44 %</div><div class="v">menos vida desperdiciada que inspeccionar a vida fija.</div></div>
+        <div class="row"><div class="k amber">14,7</div><div class="v">Generalizar entre rutas no es gratis: el tipo de vuelo pesa.</div></div>
+        <div class="row"><div class="k amber">6</div><div class="v">vuelos después del inicio, el desgaste ya se puede ver.</div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>Las condiciones de vuelo explican el 99,998 % de cada sensor; descontándolas, la correlación de T48 con el RUL pasa de −0,42 a −0,99.</p>
+    <p>Etapa 1: CatBoost RMSE 6,51, NASA 0,646; con ACI, cobertura 88,2 % y la cota inferior sobreestima en el 4,7 %. Modelo final (CV+ con 60 motores y ACI): RMSE 6,61, cobertura 93,5 %, sobreestimación 1,9 %, ancho 23,9 vuelos. La política de inspección deja 8,9 vuelos de vida desperdiciada por motor contra 15,9 de la vida fija por clase (44 % menos), con 1 inspección tardía en 39 motores en ambos casos.</p>
+    <p>Entrenando sólo con vuelos cortos, el RMSE en vuelos largos pasa de 7,69 a 14,66 (9,29 con la misma cantidad de motores de todas las clases). Un CUSUM sobre un índice de salud da la alarma 6 vuelos después del inicio real, con el 3,8 % del desgaste ocurrido.</p>
+  </aside>
+</section>
+
+<!-- 16 · LIMITACIONES ─────────────────────────────────── -->
+<section class="slide" id="s-limites">
+  <div class="grid rev g65">
+    <div class="text">
+      <p class="label">Cierre</p>
+      <h2>Límites</h2>
+      <p class="body">Lo que habría que tener en cuenta antes de usarlo en una flota real.</p>
+    </div>
+    <div class="vis">
+      <div class="rows">
+        <div class="row txt"><div class="k">Simulados</div><div class="v">Motores C-MAPSS con vuelos reales: habría que validarlo con datos de operación.</div></div>
+        <div class="row txt"><div class="k">Pocos motores</div><div class="v">39 de prueba: cada inspección tardía vale 2,6 puntos. τ = 5 vuelos es un supuesto.</div></div>
+        <div class="row txt"><div class="k">Prueba</div><div class="v">Se miró dos veces: las 200 iteraciones se fijaron después de un primer resultado.</div></div>
+        <div class="row txt"><div class="k">DS08d</div><div class="v">El archivo viene truncado en Kaggle y quedó afuera.</div></div>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>El ACI de flota usa la vida real de cada motor de prueba cuando falla: es una evaluación online. DS07 es el subconjunto más débil (cobertura 82,1 %). La primera versión del CV+ (early stopping por grupo) está en outputs/full/cvplus_v1_early_stopping.json.</p>
+    <p>Los resultados de outputs/full corresponden a la última corrida completa, con semilla fija y versiones fijadas en requirements.txt. El anexo (reports/informe_completo.html) tiene todo el EDA y la metodología en detalle.</p>
+  </aside>
+</section>
+
+<!-- 17 · GRACIAS ──────────────────────────────────────── -->
+<section class="slide" id="s-gracias">
+  <div class="grid g56">
+    <div class="text">
+      <p class="label">Laboratorio II · TP2</p>
+      <h1>Gracias</h1>
+      <div class="team">Integrantes
+        <span><i>López Marsico Verónica</i> · <i>Acciardi Juan</i> · <i>Naón Pedro</i> · <i>Giannice Agustín</i></span>
+      </div>
+      <p class="small" style="margin-top:36px;max-width:520px">Fuentes · NASA N-CMAPSS, Arias Chao et al. (2021) · Lim et al. (2021), TFT · Romano et al. (2019), CQR · Gibbs y Candès (2021), ACI · Prokhorenkova et al. (2018), CatBoost</p>
+    </div>
+    <div class="vis" style="margin-right:-80px"><canvas class="engine ix" data-variant="hero"></canvas></div>
+  </div>
+  <aside class="notes">
+    <p>Repositorio: github.com/verolopezmar/tp2-ncmapss-anatomia-de-una-falla. Todo el pipeline se reproduce con <b>python scripts/run_all.py</b>; el informe y los notebooks se generan desde el código.</p>
+    <p>Para las preguntas: <b>O</b> abre la vista general y permite saltar a cualquier slide.</p>
+  </aside>
+</section>
+
+<div class="hud" id="hud"><span class="hint" id="hint">← → avanzar · O vista general · E motor · N notas · F pantalla completa · ? ayuda</span><span id="counter">01 / 19</span></div>
+</main>
+</div>
+
+<div id="notes" aria-live="polite"><p class="label">Notas del orador</p><div id="notes-body"></div></div>
+<div id="help" role="dialog" aria-label="Atajos de teclado"><div class="in">
+  <p class="label">Ayuda</p><h3>Atajos</h3>
+  <dl>
+    <dt>← → · espacio</dt><dd>Slide anterior / siguiente (también clic en zonas vacías o swipe)</dd>
+    <dt>O · Esc</dt><dd>Vista general: todas las slides; clic para saltar</dd>
+    <dt>E</dt><dd>Vista explotada del motor (portada, anatomía y cierre)</dd>
+    <dt>Arrastrar</dt><dd>Girar el motor; al pasar el mouse se ve cada componente</dd>
+    <dt>N</dt><dd>Notas del orador</dd>
+    <dt>F</dt><dd>Pantalla completa</dd>
+    <dt>Home · End</dt><dd>Primera / última slide</dd>
+    <dt>?</dt><dd>Mostrar u ocultar esta ayuda</dd>
+  </dl>
+  <p class="small">Los botones y gráficos interactivos no cambian de slide.</p>
+</div></div>
+
+<script>
+/* Datos reales de los gráficos (outputs/full → reports/informe_final.html: figuras normalization,
+   engine_examples, coverage_by_rul, line3_delay y line3_example; modelo final: facts p_cv_*). */
+const DATA = {"norm":{"x":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100],"raw":[1650.09,1627.58,1628.48,1628.08,1624.17,1624.82,1646.67,1647.22,1644.25,1655.09,1618.81,1650.76,1628.2,1628.59,1625.28,1651.06,1619.2,1646.45,1642.19,1647.87,1628.81,1644.84,1655.4,1630.92,1628.86,1629.13,1601.51,1646.9,1619.89,1601.7,1615.96,1637.2,1647.68,1648.4,1645.08,1648.27,1645.6,1645.11,1645.31,1620.27,1626.45,1628.99,1625.58,1619.92,1601.98,1602.15,1643.33,1630.0,1652.01,1644.01,1626.01,1627.15,1632.0,1626.74,1652.56,1621.45,1632.67,1630.84,1646.82,1631.1,1618.52,1640.07,1632.35,1633.95,1648.78,1648.43,1650.66,1619.87,1633.11,1652.22,1634.31,1634.82,1653.08,1622.27,1653.01,1636.26,1636.89,1645.34,1654.01,1625.16,1639.12,1640.08,1637.93,1642.05,1642.49,1657.67,1661.54,1671.97,1662.29,1647.22,1649.09,1667.47,1651.26,1654.52,1676.62,1655.47,1657.68,1650.02,1677.75,1663.71],"res":[-0.612,-0.777,-0.239,-0.419,-0.532,-0.665,-0.406,0.032,-0.26,-0.046,-0.406,-0.08,-0.284,0.026,-0.296,0.156,-0.1,-0.011,-0.019,0.546,0.198,0.21,0.197,0.314,0.482,0.276,0.43,0.347,0.449,0.584,0.505,0.563,0.398,0.97,0.398,0.864,0.813,0.424,0.585,0.751,0.624,0.589,0.589,0.475,0.806,0.939,0.887,0.967,0.911,1.428,0.93,1.18,1.17,1.51,1.341,1.682,1.702,2.051,1.784,2.257,2.536,2.841,2.963,2.715,3.331,3.056,3.328,3.604,3.853,4.569,4.516,5.209,5.247,5.503,5.829,6.354,6.849,7.021,7.483,7.797,8.62,9.377,9.732,10.524,11.048,12.261,12.593,13.339,14.047,14.798,16.24,17.288,18.003,19.026,20.425,21.343,23.046,24.338,26.304,27.828],"onset":36.5},"eng":{"label":"DS01 · motor 09","x":[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80],"hi":[91.18,92.38,92.09,92.62,92.4,91.23,91.68,86.73,91.26,84.7,86.76,87.03,86.69,85.19,78.37,81.3,83.11,80.32,73.37,78.76,77.79,75.39,77.66,71.1,70.26,68.2,67.93,67.68,66.72,63.52,63.8,62.92,64.09,58.5,62.82,62.61,66.41,65.76,62.4,61.82,60.49,60.85,57.6,56.4,57.98,52.34,48.54,48.68,49.51,48.31,45.6,40.37,39.36,39.74,36.53,32.94,32.3,29.75,27.94,27.22,26.69,24.24,23.55,21.42,20.74,19.0,18.45,18.23,16.53,14.39,12.7,12.53,12.76,11.03,5.99,4.34,2.54,1.86,0.78],"lo":[76.33,74.3,70.45,69.38,70.63,65.98,67.2,56.99,67.67,56.13,58.6,58.5,57.82,57.03,50.66,55.15,56.93,54.08,47.04,53.07,52.05,45.7,48.74,43.19,44.46,42.28,43.92,43.07,41.21,40.78,40.66,39.71,40.69,39.23,41.04,41.05,40.34,39.4,38.41,35.74,35.13,34.03,33.48,33.04,32.65,29.42,27.91,27.95,27.23,25.59,23.66,20.11,19.38,18.1,16.47,11.31,10.97,9.4,9.02,8.85,8.51,7.96,7.57,6.74,5.63,5.42,4.89,4.78,3.18,1.22,0.46,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"pred":[82.11,81.41,79.12,77.89,79.29,75.38,77.95,73.6,78.24,72.38,74.56,74.4,72.63,71.89,63.78,68.55,70.24,67.53,59.91,66.18,65.47,60.04,63.57,57.49,57.96,56.42,57.19,56.31,53.35,53.25,52.88,52.69,53.67,50.02,53.25,52.73,54.7,54.82,52.66,47.71,45.83,45.2,44.62,42.27,42.78,37.81,35.72,34.9,35.91,35.76,32.97,28.81,28.01,28.26,25.73,22.67,21.71,19.49,18.04,18.28,17.48,16.38,15.82,14.6,13.94,12.7,12.62,12.49,10.35,8.46,7.48,6.91,6.58,5.01,2.25,1.1,0.18,0.01,-1.11],"real":[78,77,76,75,74,73,72,71,70,69,68,67,66,65,64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]},"cov":{"x":["0–9","10–24","25–49","50–74","75–999"],"raw":[48.46,74.36,77.03,94.16,85.13],"aci":[95.38,91.11,85.13,91.11,67.69]},"l3":{"CUSUM online":[11.0,11.0,12.0,20.0,7.0,-7.0,6.0,9.0,8.0,4.0,7.0,1.0,6.0,18.0,14.0,14.0,20.0,9.0,4.0,6.0,4.0,10.0,6.0,8.0,6.0,19.0,12.0,19.0,6.0,-4.0,-13.0,4.0,5.0,8.0,-11.0,2.0,2.0,2.0,0.0],"PELT offline":[-5.0,10.0,11.0,13.0,2.0,-10.0,2.0,8.0,2.0,4.0,-3.0,-10.0,1.0,14.0,9.0,14.0,14.0,7.0,0.0,2.0,-1.0,9.0,4.0,4.0,3.0,17.0,14.0,12.0,-1.0,-4.0,5.0,3.0,1.0,5.0,-2.0,-2.0,8.0,-1.0,9.0],"Umbral sobre T48":[4.0,7.0,7.0,15.0,6.0,-8.0,4.0,7.0,6.0,-7.0,7.0,-7.0,3.0,36.0,40.0,21.0,7.0,17.0,7.0,22.0,10.0,19.0,11.0,17.0,11.0,17.0,13.0,-5.0,0.0,4.0,3.0,10.0,-4.0,1.0,-4.0,4.0,9.0]},"l3ex":{"label":"DS02 · motor 15","x":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67],"hi":[0.241,0.524,1.091,0.87,1.077,0.854,1.349,0.83,0.975,1.052,0.621,0.636,0.823,0.51,0.986,0.78,0.799,1.029,1.028,1.447,0.714,1.233,0.672,1.246,0.965,1.76,1.559,2.158,1.668,1.569,1.847,1.986,1.95,1.936,2.191,2.306,2.153,2.577,2.745,3.585,3.191,3.457,4.402,4.527,4.575,5.502,5.226,5.787,5.992,6.879,7.827,7.983,8.771,9.419,9.806,10.854,11.394,12.471,13.793,14.411,16.033,16.082,17.587,19.418,20.962,23.363,24.034],"onset":24,"alarm":{"CUSUM online":30.0,"PELT offline":26.0,"Umbral sobre T48":28.0}},"cv":{"rows":[["CatBoost · 11 motores · ACI","6,51","0,646","88,2 %","4,7 %","18,8"],["CatBoost CV+ · 60 motores","6,61","0,704","95,8 %","1,1 %","25,8"],["CatBoost CV+ y ACI · modelo final","6,61","0,704","93,5 %","1,9 %","23,9"]],"waste":"8,9","waste_fixed":"15,9","waste_med":"9,2","late":"1","late_fixed":"1","tau":"5"}};
+</script>
+<script>
+(() => {
+"use strict";
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const TAU = Math.PI * 2;
+const COL = { violet:"#8052ff", purple:"#a983ff", amber:"#ffb829", teal:"#22c9a6", green:"#15846e", magenta:"#ff4fd8", blue:"#4f7dff" };
+const CNAMES = Object.keys(COL), CVALS = Object.values(COL);
+const GREEN = "#1fb393";
+const ease = p => 1 - Math.pow(1 - p, 3);
+const lerp = (a, b, p) => a + (b - a) * p;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function tween(dur, fn, done){
+  if (reduced || dur <= 0) { fn(1); done && done(); return () => {}; }
+  let stop = false; const t0 = performance.now();
+  const step = now => { if (stop) return; const p = clamp((now - t0) / dur, 0, 1); fn(ease(p)); if (p < 1) requestAnimationFrame(step); else done && done(); };
+  requestAnimationFrame(step); return () => { stop = true; };
+}
+const fmt = (v, d = 1) => v.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/* ══════════ Navegación ══════════ */
+const stage = document.getElementById("stage");
+const slides = [...document.querySelectorAll(".slide")];
+const N = slides.length;
+slides.forEach((s, i) => s.dataset.n = String(i + 1).padStart(2, "0"));
+const counter = document.getElementById("counter");
+const progress = document.getElementById("progress");
+const notes = document.getElementById("notes"), notesBody = document.getElementById("notes-body");
+const help = document.getElementById("help");
+const hint = document.getElementById("hint");
+const HOOKS = {};               // id de slide → { enter(), leave(), final() }
+let cur = 0, slideT = 0, dirty = true;
+const isOverview = () => document.body.classList.contains("overview");
+
+const pad = n => String(n).padStart(2, "0");
+function go(i, fromHash){
+  i = clamp(i, 0, N - 1);
+  const prev = slides[cur];
+  if (i !== cur) { hint.classList.add("gone"); HOOKS[prev.id]?.leave?.(); }
+  prev.classList.remove("active", "entering");
+  cur = i;
+  const s = slides[cur];
+  s.classList.add("active");
+  if (!reduced && !isOverview()) { void s.offsetWidth; s.classList.add("entering"); }
+  counter.textContent = pad(cur + 1) + " / " + pad(N);
+  progress.style.width = ((cur + 1) / N * 100) + "%";
+  const a = s.querySelector("aside.notes");
+  notesBody.innerHTML = a ? a.innerHTML : "";
+  slideT = 0; dirty = true;
+  if (!fromHash) history.replaceState(null, "", "#" + (cur + 1));
+  if (!isOverview()) { countUp(s); revealCharts(s); HOOKS[s.id]?.enter?.(); }
+}
+function fit(){
+  const s = Math.min(innerWidth / 1440, innerHeight / 810);
+  stage.style.transform = `translate(-50%,-50%) scale(${s})`;
+  stage.dataset.scale = s;
+  sizeCanvases(); dirty = true;
+  if (isOverview()) layoutOverview();
+}
+addEventListener("resize", fit);
+
+const isUI = t => t.closest && t.closest("button, input, a, .ix, #help, #notes");
+addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key, inRange = e.target.tagName === "INPUT";
+  if (help.classList.contains("show")) { if (k === "Escape" || k === "?") { help.classList.remove("show"); e.preventDefault(); } return; }
+  if (k === "?") { help.classList.add("show"); return; }
+  if (k === "Escape" || k === "o" || k === "O") { e.preventDefault(); toggleOverview(); return; }
+  if (isOverview()) {
+    if (k === "Enter") toggleOverview(false);
+    else if (["ArrowRight","ArrowDown"].includes(k)) { e.preventDefault(); go(cur + 1); }
+    else if (["ArrowLeft","ArrowUp"].includes(k)) { e.preventDefault(); go(cur - 1); }
+    return;
+  }
+  if (inRange && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","PageUp","PageDown"].includes(k)) return;
+  if ((k === " " || k === "Enter") && e.target.tagName === "BUTTON") return;
+  if (["ArrowRight","ArrowDown","PageDown"," ","Enter"].includes(k)) { e.preventDefault(); go(cur + 1); }
+  else if (["ArrowLeft","ArrowUp","PageUp","Backspace"].includes(k)) { e.preventDefault(); go(cur - 1); }
+  else if (k === "Home") go(0);
+  else if (k === "End") go(N - 1);
+  else if (k === "f" || k === "F") {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
+    else document.exitFullscreen?.();
+  }
+  else if (k === "n" || k === "N") notes.classList.toggle("show");
+  else if (k === "e" || k === "E") toggleExplode();
+});
+document.getElementById("viewport").addEventListener("click", e => {
+  if (isOverview()) { const s = e.target.closest(".slide"); if (s) { cur = slides.indexOf(s); toggleOverview(false); } return; }
+  if (isUI(e.target)) return;
+  if (e.clientX < innerWidth * 0.3) go(cur - 1); else go(cur + 1);
+});
+help.addEventListener("click", () => help.classList.remove("show"));
+let tx = null, ty = null;
+addEventListener("touchstart", e => { if (isUI(e.target)) { tx = null; return; } tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive:true });
+addEventListener("touchend", e => {
+  if (tx === null) return;
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(cur + (dx < 0 ? 1 : -1));
+  tx = null;
+}, { passive:true });
+addEventListener("hashchange", () => { const n = parseInt(location.hash.slice(1), 10); if (n && n - 1 !== cur) go(n - 1, true); });
+
+/* Vista general (O / Esc): grilla de miniaturas, clic para saltar */
+function layoutOverview(){
+  const cols = 5, gap = 18, sc = (1440 - 2 * 60 - gap * (cols - 1)) / cols / 1440;
+  const tw = 1440 * sc, th = 810 * sc, rows = Math.ceil(N / cols);
+  const y0 = Math.max(20, (810 - rows * th - (rows - 1) * gap) / 2);
+  slides.forEach((s, i) => {
+    const x = 60 + (i % cols) * (tw + gap), y = y0 + Math.floor(i / cols) * (th + gap);
+    s.style.transform = `translate(${x}px,${y}px) scale(${sc})`;
+  });
+}
+function toggleOverview(force){
+  const on = force === undefined ? !isOverview() : force;
+  if (on) {
+    for (const k in HOOKS) HOOKS[k].final?.();
+    makePrintImages(); document.body.classList.add("overview"); slides.forEach(s => s.classList.remove("entering")); layoutOverview();
+  } else { document.body.classList.remove("overview"); slides.forEach(s => s.style.transform = ""); go(cur); }
+}
+
+/* Animaciones de entrada: escalonado, conteo de números, gráficos de izquierda a derecha */
+for (const sel of [".text", ".rows", ".stats4", ".stack", ".pair"])
+  document.querySelectorAll(sel).forEach(box => [...box.children].forEach((c, i) => c.style.setProperty("--i", i)));
+const NUMRE = /\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?/g;
+function prepCount(){
+  document.querySelectorAll(".num:not([data-nocount]), .row .k").forEach(el => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const tn of nodes) {
+      const s = tn.nodeValue; NUMRE.lastIndex = 0; if (!NUMRE.test(s)) continue; NUMRE.lastIndex = 0;
+      const frag = document.createDocumentFragment(); let last = 0, m;
+      while ((m = NUMRE.exec(s))) {
+        frag.append(s.slice(last, m.index));
+        const sp = document.createElement("span"); sp.className = "cnt"; sp.textContent = m[0];
+        sp.dataset.v = parseFloat(m[0].replace(/\./g, "").replace(",", ".")); sp.dataset.d = (m[0].split(",")[1] || "").length; sp.dataset.t = m[0];
+        frag.append(sp); last = m.index + m[0].length;
+      }
+      frag.append(s.slice(last)); tn.replaceWith(frag);
+    }
+  });
+}
+function countUp(s){
+  if (reduced) return;
+  s.querySelectorAll(".cnt").forEach(sp => {
+    const v = +sp.dataset.v, d = +sp.dataset.d, t = sp.dataset.t;
+    tween(800, p => { sp.textContent = p >= 1 ? t : fmt(v * p, d); });
+  });
+}
+function revealCharts(s){
+  if (reduced) return;
+  s.querySelectorAll("svg.chart rect.reveal").forEach(r => { const W = +r.dataset.w, X0 = +r.dataset.x;
+    tween(850, p => r.setAttribute("width", W * p)); r.setAttribute("x", X0); });
+}
+
+/* ══════════ Motor turbofan de partículas ══════════ */
+function rng(seed){ return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+const GROUPS = ["nac", "fan", "core", "lpc", "hpc", "comb", "hpt", "lpt", "noz", "shaft"];
+const GI = Object.fromEntries(GROUPS.map((g, i) => [g, i]));
+const COMP2G = { nac:"nac", lip:"nac", fan:"fan", spin:"fan", core:"core", lpc:"lpc", hpc:"hpc", comb:"comb", hpt:"hpt", lpt:"lpt", noz:"noz", shaft:"shaft" };
+const EXPLODE = { nac:-0.04, fan:-0.42, core:0, lpc:-0.24, hpc:-0.06, comb:0.13, hpt:0.3, lpt:0.47, noz:0.68, shaft:0 };
+const EXPLODE_ALPHA = { nac:0.22, core:0.1, shaft:0.35 };
+const HOVERABLE = ["fan", "lpc", "hpc", "comb", "hpt", "lpt", "noz"];
+const HOVSET = new Set(HOVERABLE);
+/* Qué mide cada sensor físico (src/ncmapss/metadata.py) y en qué subconjuntos falla cada componente (EDA). */
+const COMP_INFO = {
+  fan:  { n:"Fan", s:"P2 · P21 · P15 · Nf", d:"Presión a la entrada y a la salida del fan, presión en el bypass y velocidad del fan.", g:"Se degrada en DS04, DS08a y DS08c" },
+  lpc:  { n:"Compresor de baja · LPC", s:"T24 · P24", d:"Temperatura y presión a la salida del LPC.", g:"Se degrada en DS06, DS08a y DS08c" },
+  hpc:  { n:"Compresor de alta · HPC", s:"T30 · Ps30 · Nc", d:"Temperatura y presión estática a la salida del HPC; velocidad del núcleo.", g:"Se degrada en DS05, DS06, DS08a y DS08c" },
+  comb: { n:"Cámara de combustión", s:"Wf · P40", d:"Flujo de combustible y presión a la salida del combustor.", g:"No se degrada en el dataset" },
+  hpt:  { n:"Turbina de alta · HPT", s:"T48", d:"Temperatura a la salida de la HPT: el sensor que más sigue al desgaste.", g:"Se degrada en DS01, DS02, DS03, DS08a y DS08c" },
+  lpt:  { n:"Turbina de baja · LPT", s:"T50 · P50", d:"Temperatura y presión a la salida de la LPT.", g:"Se degrada en DS02, DS03, DS07, DS08a y DS08c" },
+  noz:  { n:"Tobera", s:"Sin sensor propio", d:"Lo que sale del núcleo se ve en T50 y P50.", g:"" }
+};
+
+function buildEngine(){
+  const R = rng(11), P = [];
+  const C = CNAMES.reduce((o, k, i) => (o[k] = i, o), {});
+  const pal = {
+    nac:[C.violet,C.blue,C.purple,C.blue,C.violet,C.teal], lip:[C.violet,C.purple,C.magenta], fan:[C.teal,C.blue,C.teal,C.violet],
+    spin:[C.amber,C.amber,C.magenta], core:[C.violet,C.blue,C.purple,C.teal], lpc:[C.blue,C.teal,C.violet], hpc:[C.violet,C.blue,C.purple],
+    comb:[C.amber,C.amber,C.magenta,C.amber], hpt:[C.magenta,C.amber,C.magenta,C.violet], lpt:[C.magenta,C.purple,C.amber,C.violet],
+    noz:[C.blue,C.teal,C.violet], shaft:[C.amber,C.magenta]
+  };
+  const push = (comp, x, r, th, spin, a = 0.9) => {
+    const cs = pal[comp];
+    const ci = R() < 0.08 ? Math.floor(R() * CVALS.length) : cs[Math.floor(R() * cs.length)];
+    P.push({ comp, g: COMP2G[comp], x, r, th, spin, ci, s: 0.55 + R() * 0.9, a: a * (0.55 + R() * 0.45), ph: R() * TAU,
+      tr: R() * TAU, trs: (R() - .5) * 0.5, bx: R() - .5, by: R() - .5, bz: R() - .5, thr: R(), dr: 0.2 + R() * 0.5, dx: 0.1 + R() * 0.5 });
+  };
+  const farTh = () => (R() - 0.5) * Math.PI;
+  const cut = th => Math.cos(th) < 0;
+  const nacR = x => { const t = (x + 1) / 1.25; return 0.60 + 0.065 * Math.sin(Math.PI * Math.min(1, t * 1.05)) - 0.05 * t * t; };
+  for (let m = 0; m <= 16; m++) { const th = -Math.PI / 2 + Math.PI * m / 16;
+    for (let j = 0; j < 30; j++) { const x = -1 + 1.25 * (j + R() * 0.6) / 30; push("nac", x, nacR(x), th + (R() - .5) * 0.02, 0, 0.8); } }
+  [-0.75, -0.45, -0.15, 0.1].forEach(x => { for (let i = 0; i < 70; i++) push("nac", x, nacR(x), farTh(), 0, 0.7); });
+  for (let i = 0; i < 260; i++) { const x = -1 + 1.25 * R(); push("nac", x, nacR(x), farTh(), 0, 0.5); }
+  for (let i = 0; i < 340; i++) { const u = R() * TAU; push("lip", -1 + 0.022 * Math.cos(u), 0.6 + 0.022 * Math.sin(u), R() * TAU, 0); }
+  for (let i = 0; i < 170; i++) push("nac", 0.25, nacR(0.25) - 0.01, R() * TAU, 0);
+  for (let i = 0; i < 200; i++) push("fan", -0.82 + (R() - .5) * 0.05, 0.6, R() * TAU, 0, 0.6);
+  for (let i = 0; i < 200; i++) { const u = R(); push("spin", -1.13 + 0.31 * u, 0.13 * Math.sqrt(u), R() * TAU, 1); }
+  for (let b = 0; b < 18; b++) { const t0 = b / 18 * TAU;
+    for (let j = 0; j < 38; j++) { const rr = 0.13 + 0.46 * (j / 37) + (R() - .5) * 0.01;
+      push("fan", -0.82 + 0.035 * (rr - 0.13) + (R() - .5) * 0.025, rr, t0 + 0.42 * (rr - 0.13) + (R() - .5) * 0.05, 1); } }
+  for (let i = 0; i < 90; i++) push("fan", -0.82, 0.13, R() * TAU, 1);
+  const coreR = x => x < -0.45 ? 0.28 + (x + 0.62) / 0.17 * 0.05 : x < 0.2 ? 0.33 : 0.33 - (x - 0.2) / 0.75 * 0.06;
+  for (let m = 0; m <= 6; m++) { const th = -Math.PI / 2 + Math.PI * m / 6;
+    for (let j = 0; j < 30; j++) { const x = -0.62 + 1.57 * (j + R() * 0.6) / 30; push("core", x, coreR(x), th, 0, 0.45); } }
+  for (let i = 0; i < 90; i++) { const x = -0.62 + 1.57 * R(); push("core", x, coreR(x), farTh(), 0, 0.45); }
+  for (let i = 0; i < 140; i++) push("core", -0.62, 0.28, R() * TAU, 0);
+  const stg = (comp, x, nb, h, c, n, spin) => { for (let b = 0; b < nb; b++) { const t0 = b / nb * TAU + x * 7;
+    for (let j = 0; j < n; j++) { const rr = h + (c - h) * j / (n - 1); push(comp, x + (R() - .5) * 0.012, rr, t0 + 0.25 * (rr - h), spin); } } };
+  [-0.56, -0.50, -0.44].forEach(x => stg("lpc", x, 12, 0.14, 0.27, 9, 1));
+  for (let k = 0; k < 7; k++) stg("hpc", -0.36 + k * 0.077, 12, 0.15 + 0.02 * k / 6, 0.29 - 0.09 * k / 6, 7, 2);
+  for (let i = 0; i < 260; i++) push("comb", 0.16 + 0.22 * R(), 0.15 + 0.08 * R(), R() * TAU, 0);
+  [0.44, 0.50].forEach(x => stg("hpt", x, 14, 0.15, 0.23, 8, 2));
+  [0.58, 0.65, 0.72, 0.79].forEach((x, k) => stg("lpt", x, 14, 0.15, 0.24 + 0.03 * k / 3, 9, 1));
+  for (let i = 0; i < 260; i++) { const u = R(), x = 0.85 + 0.27 * u, th = R() * TAU; if (cut(th)) continue; push("noz", x, 0.275 - 0.055 * u, th, 0, 0.8); }
+  for (let i = 0; i < 120; i++) push("noz", 1.12, 0.22, R() * TAU, 0, 0.8);
+  for (let i = 0; i < 240; i++) { const u = R(); push("noz", 0.84 + 0.52 * u, 0.15 * Math.pow(1 - u, 0.85), R() * TAU, 0); }
+  for (let i = 0; i < 90; i++) push("shaft", -0.82 + 1.66 * R(), 0.035, R() * TAU, 2, 0.6);
+  return P;
+}
+const ENGINE = buildEngine();
+const NP = ENGINE.length;
+const VARIANTS = {
+  hero:    { alpha: 1.00, zoom: 1.00, tri: 1.0, stride: 1, live: true },
+  anatomy: { alpha: 1.00, zoom: 1.02, tri: 1.0, stride: 1, live: true, auto: true },
+  dim:     { alpha: 0.30, zoom: 0.95, tri: 0.9, stride: 2 },
+  faint:   { alpha: 0.14, zoom: 1.05, tri: 0.9, stride: 2 },
+  degrade: { alpha: 0.95, zoom: 1.00, tri: 1.0, stride: 1 }
+};
+const canvases = [...document.querySelectorAll("canvas.engine")];
+const dpr = () => Math.min(2, window.devicePixelRatio || 1);
+function engState(cv){
+  if (!cv._st) {
+    const v = VARIANTS[cv.dataset.variant] || VARIANTS.hero;
+    cv._st = { v, yaw: -0.6, pitch: 0.16, vy: 0, vp: 0, ex: 0, exT: 0, hover: null, userAt: -1e9, autoAt: 0, autoI: 0, deg: 0, drag: null,
+      px: v.live ? new Float32Array(NP) : null, py: v.live ? new Float32Array(NP) : null, pg: v.live ? new Int8Array(NP) : null, np: 0, lab: null };
+  }
+  return cv._st;
+}
+function sizeCanvases(){
+  const s = parseFloat(stage.dataset.scale || 1);
+  for (const cv of canvases) {
+    cv.width = Math.max(1, Math.round(cv.offsetWidth * s * dpr()));
+    cv.height = Math.max(1, Math.round(cv.offsetHeight * s * dpr()));
+  }
+  const amb = document.getElementById("ambient");
+  amb.width = innerWidth * dpr(); amb.height = innerHeight * dpr();
+}
+
+function drawEngine(cv, t, cssW){
+  const st = engState(cv), v = st.v;
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+  if (W < 4 || H < 4) return;
+  const px = W / (cssW || cv.offsetWidth || W);          // píxeles de buffer por px css
+  const cyw = Math.cos(st.yaw), syw = Math.sin(st.yaw), cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+  const ex = st.ex, deg = st.deg, hov = st.hover;
+  const S = Math.min(W / 2.55, H / 1.45) * v.zoom * (1 - 0.36 * ex), cx = W * 0.5 + S * 0.1 * ex, cy = H * 0.5;
+  const sizeK = px * Math.max(1, Math.min(1.6, S / 260));
+  const L = [0.18, 0.4, 0.78];
+  const B = Array.from({ length: CVALS.length * 3 }, () => []);
+  const wFan = t * 0.35, wCore = t * 0.55;
+  let np = 0, lx = 0, ln = 0, ly = 1e9;
+  for (let i = 0; i < NP; i += v.stride) {
+    const p = ENGINE[i], g = p.g;
+    const th = p.th + (p.spin === 1 ? wFan : p.spin === 2 ? wCore : 0);
+    let x = p.x + EXPLODE[g] * ex, y = p.r * Math.sin(th), z = p.r * Math.cos(th);
+    const b = 0.007 * Math.sin(t * 0.8 + p.ph);
+    x += p.bx * b; y += p.by * b; z += p.bz * b;
+    let a = p.a * v.alpha * (0.82 + 0.18 * Math.sin(t * 1.1 + p.ph * 1.7));
+    if (p.comp === "comb") a *= 0.75 + 0.25 * Math.sin(t * 3 + p.ph);
+    if (ex > 0 && EXPLODE_ALPHA[g] !== undefined) a *= 1 - (1 - EXPLODE_ALPHA[g]) * ex;
+    if (deg > 0 && (g === "hpt" || g === "lpt")) {
+      const f = clamp((deg - p.thr * 0.75) / 0.25, 0, 1);
+      a *= 1 - 0.95 * f;
+      const k = 1 + f * p.dr * 2.2; y = y * k - f * p.dr * 0.45; z *= k; x += f * p.dx * 0.6;
+    }
+    let big = 1;
+    if (hov) { if (g === hov) { a = Math.min(1, a * 1.9 + 0.15); big = 1.25; } else a *= 0.28; }
+    if (a < 0.05) continue;
+    const X = x * cyw + z * syw, Z1 = -x * syw + z * cyw;
+    const Y = y * cp - Z1 * sp, Z = y * sp + Z1 * cp;
+    const f = 3.4 / (3.4 + Z);
+    const sx = cx + X * f * S, sy = cy - Y * f * S;
+    if (st.px && HOVSET.has(g)) { st.px[np] = sx; st.py[np] = sy; st.pg[np] = GI[g]; np++; }
+    if (hov && g === hov) { lx += sx; ln++; if (sy < ly) ly = sy; }
+    const lvl = a > 0.62 ? 2 : a > 0.32 ? 1 : 0;
+    B[p.ci * 3 + lvl].push(sx, sy, (1.15 + 1.75 * p.s) * v.tri * big * sizeK * f, p.tr + t * p.trs);
+  }
+  st.np = np;
+  st.lab = ln ? { x: lx / ln / px, y: ly / px } : null;
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineWidth = 1.1 * px;
+  for (let i = 0; i < B.length; i++) {
+    const arr = B[i]; if (!arr.length) continue;
+    ctx.strokeStyle = CVALS[Math.floor(i / 3)]; ctx.globalAlpha = L[i % 3]; ctx.beginPath();
+    for (let j = 0; j < arr.length; j += 4) {
+      const sx = arr[j], sy = arr[j + 1], r = arr[j + 2], o = arr[j + 3];
+      ctx.moveTo(sx + r * Math.cos(o), sy + r * Math.sin(o));
+      ctx.lineTo(sx + r * Math.cos(o + 2.094), sy + r * Math.sin(o + 2.094));
+      ctx.lineTo(sx + r * Math.cos(o + 4.189), sy + r * Math.sin(o + 4.189));
+      ctx.closePath();
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+}
+
+/* Interacción con el motor: arrastrar (con inercia), pasar el mouse, vista explotada */
+function labelFor(cv){
+  let el = cv.parentNode.querySelector(".eng-label");
+  if (!el) { el = document.createElement("div"); el.className = "eng-label"; cv.after(el); }
+  return el;
+}
+function setHover(cv, g){
+  const st = engState(cv); if (st.hover === g) return;
+  st.hover = g; dirty = true;
+  const el = labelFor(cv);
+  if (!g) { el.classList.remove("show"); return; }
+  const c = COMP_INFO[g];
+  el.innerHTML = `<div class="n">${c.n}</div><div class="s">${c.s}</div><div class="d">${c.d}</div>${c.g ? `<div class="g">${c.g}</div>` : ""}`;
+  el.classList.add("show");
+}
+function placeLabel(cv){
+  const st = engState(cv); if (!st.hover || !st.lab) return;
+  const el = labelFor(cv), bw = cv.parentNode.clientWidth, w = el.offsetWidth;
+  const x = clamp(cv.offsetLeft + st.lab.x, w / 2 + 4, bw - w / 2 - 4), y = Math.max(el.offsetHeight + 4, cv.offsetTop + st.lab.y - 14);
+  el.style.left = x + "px"; el.style.top = y + "px";
+}
+function pick(cv, e){
+  const st = engState(cv), r = cv.getBoundingClientRect(), k = cv.width / r.width;
+  const x = (e.clientX - r.left) * k, y = (e.clientY - r.top) * k, rad = 18 * k;
+  let best = rad * rad, bg = -1;
+  for (let i = 0; i < st.np; i++) { const dx = st.px[i] - x, dy = st.py[i] - y, d = dx * dx + dy * dy; if (d < best) { best = d; bg = st.pg[i]; } }
+  return bg >= 0 ? GROUPS[bg] : null;
+}
+for (const cv of canvases) {
+  const st = engState(cv); if (!st.v.live) continue;
+  cv.classList.add("live");
+  cv.addEventListener("pointerdown", e => { st.drag = { x: e.clientX, y: e.clientY }; st.userAt = performance.now(); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e => {
+    st.userAt = performance.now();
+    if (st.drag) {
+      const k = 1 / parseFloat(stage.dataset.scale || 1);
+      const dx = (e.clientX - st.drag.x) * k, dy = (e.clientY - st.drag.y) * k;
+      st.drag.x = e.clientX; st.drag.y = e.clientY;
+      st.vy = dx * 0.006; st.vp = dy * 0.004;
+      st.yaw += st.vy; st.pitch = clamp(st.pitch + st.vp, -0.7, 0.9); dirty = true;
+    } else setHover(cv, pick(cv, e));
+  });
+  const end = () => { if (st.drag) { st.drag = null; if (reduced) st.vy = st.vp = 0; } };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+  cv.addEventListener("pointerleave", () => { if (!st.drag) setHover(cv, null); });
+}
+function liveCanvas(){ return [...slides[cur].querySelectorAll("canvas.engine")].find(c => engState(c).v.live); }
+const btnExplode = document.getElementById("btn-explode");
+function toggleExplode(){
+  const cv = liveCanvas(); if (!cv) return;
+  const st = engState(cv); st.exT = st.exT ? 0 : 1; if (reduced) st.ex = st.exT; dirty = true;
+  if (cv.closest("#s-anatomia")) btnExplode.textContent = st.exT ? "Volver a armar · E" : "Vista explotada · E";
+}
+btnExplode.addEventListener("click", toggleExplode);
+
+function stepEngine(cv, now, dt){
+  const st = engState(cv);
+  if (!st.drag && !reduced) {
+    st.yaw += st.vy; st.pitch = clamp(st.pitch + st.vp, -0.7, 0.9);
+    const k = Math.pow(0.9, dt * 60); st.vy *= k; st.vp *= k;
+    if (Math.abs(st.vy) < 1e-4) st.vy = 0; if (Math.abs(st.vp) < 1e-4) st.vp = 0;
+  }
+  st.ex = reduced ? st.exT : st.ex + (st.exT - st.ex) * Math.min(1, dt * 5);
+  if (st.v.auto && now - st.userAt > 4000) {                 // recorrido automático de los componentes
+    if (reduced) { if (st.hover !== "hpt") setHover(cv, "hpt"); }
+    else if (now - st.autoAt > 2400) { st.autoAt = now; setHover(cv, HOVERABLE[st.autoI++ % HOVERABLE.length]); }
+  }
+}
+
+/* Campo ambiental: triangulitos sueltos que se apartan levemente del cursor */
+const AMB = (() => { const R = rng(3); return Array.from({ length: 110 }, () => ({
+  x: R(), y: R(), vx: (R() - .5) * 0.004, vy: (R() - .5) * 0.004, s: 2 + R() * 3.5, o: R() * TAU, so: (R() - .5) * 0.3,
+  c: CVALS[Math.floor(R() * CVALS.length)], a: 0.08 + R() * 0.17, ox: 0, oy: 0 })); })();
+const mouse = { x: -1e4, y: -1e4 };
+addEventListener("pointermove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+document.addEventListener("pointerleave", () => { mouse.x = mouse.y = -1e4; });
+function drawAmbient(t, dt){
+  const cv = document.getElementById("ambient"), ctx = cv.getContext("2d"), W = cv.width, H = cv.height, d = dpr();
+  ctx.clearRect(0, 0, W, H); ctx.lineWidth = 1 * d;
+  const mx = mouse.x * d, my = mouse.y * d, R0 = 140 * d;
+  for (const p of AMB) {
+    if (!reduced) {
+      p.x = (p.x + p.vx * dt + 1) % 1; p.y = (p.y + p.vy * dt + 1) % 1;
+      const ddx = p.x * W - mx, ddy = p.y * H - my, dist = Math.hypot(ddx, ddy);
+      let tx = 0, ty = 0;
+      if (dist < R0 && dist > 0.1) { const k = (1 - dist / R0) * 26 * d; tx = ddx / dist * k; ty = ddy / dist * k; }
+      const kk = Math.min(1, dt * 6); p.ox += (tx - p.ox) * kk; p.oy += (ty - p.oy) * kk;
+    }
+    const sx = p.x * W + p.ox, sy = p.y * H + p.oy, r = p.s * d, o = p.o + t * p.so;
+    ctx.globalAlpha = p.a; ctx.strokeStyle = p.c; ctx.beginPath();
+    ctx.moveTo(sx + r * Math.cos(o), sy + r * Math.sin(o));
+    ctx.lineTo(sx + r * Math.cos(o + 2.094), sy + r * Math.sin(o + 2.094));
+    ctx.lineTo(sx + r * Math.cos(o + 4.189), sy + r * Math.sin(o + 4.189));
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+let last = performance.now(), fpsN = 0, fpsT = 0;
+window.__fps = 0;
+function frame(now){
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now; slideT += dt;
+  fpsN++; fpsT += dt; if (fpsT >= 1) { window.__fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
+  const t = reduced ? 0 : now / 1000;
+  if (!isOverview() && (!reduced || dirty)) {
+    drawAmbient(t, dt);
+    for (const cv of slides[cur].querySelectorAll("canvas.engine")) { stepEngine(cv, now, dt); drawEngine(cv, t); placeLabel(cv); }
+    dirty = false;
+  }
+  requestAnimationFrame(frame);
+}
+
+/* Imágenes estáticas de cada motor: impresión y vista general */
+function makePrintImages(){
+  for (const sl of slides) for (const cv of sl.querySelectorAll("canvas.engine")) {
+    const w = cv.offsetWidth, h = cv.offsetHeight; if (!w || !h) continue;
+    const off = document.createElement("canvas"); off.width = w * 2; off.height = h * 2;
+    off.dataset.variant = cv.dataset.variant;
+    engState(off).deg = engState(cv).deg;
+    drawEngine(off, 0, w);
+    let img = cv.parentNode.querySelector("img.engine-print");
+    if (!img) { img = document.createElement("img"); img.className = "engine-print"; img.alt = ""; cv.after(img); }
+    img.src = off.toDataURL("image/png");
+  }
+}
+addEventListener("beforeprint", () => { for (const k in HOOKS) HOOKS[k].final?.(); makePrintImages(); });
+
+/* ══════════ Gráficos (SVG, datos reales) ══════════ */
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+const pathOf = (xs, ys) => xs.map((x, i) => (i ? "L" : "M") + x.toFixed(1) + " " + ys[i].toFixed(1)).join("");
+const path = (xs, ys, X, Y) => pathOf(xs.map(X), ys.map(Y));
+let clipN = 0;
+/* svg(): las marcas van dentro de un recorte que se anima de izquierda a derecha al entrar a la slide */
+function svg(w, h, inner, label, marks, clip){
+  const id = "rv" + (++clipN), [cx, cy, cw, ch] = clip;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">
+    <defs><clipPath id="${id}"><rect class="reveal" data-x="${cx - 12}" data-w="${cw + 60}" x="${cx - 12}" y="${cy - 40}" width="${cw + 60}" height="${ch + 80}"/></clipPath></defs>
+    ${inner}<g clip-path="url(#${id})">${marks}</g></svg>`;
+}
+const swatch = (x, y, color, text, kind) => `<line x1="${x}" y1="${y}" x2="${x + 22}" y2="${y}" stroke="${color}" stroke-width="${kind === "band" ? 10 : 2}" ${kind === "band" ? 'stroke-opacity=".3"' : ""} ${kind === "dash" ? 'stroke-dasharray="5 4"' : ""} stroke-linecap="round"/><text x="${x + 30}" y="${y + 5}">${text}</text>`;
+const put = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; return el; };
+function toggles(name, onChange){
+  const box = document.querySelector(`.toggles[data-for="${name}"]`);
+  const multi = box.dataset.multi;
+  box.addEventListener("click", e => {
+    const b = e.target.closest(".tg"); if (!b) return;
+    if (multi) { b.classList.toggle("on"); b.classList.toggle("off", !b.classList.contains("on")); onChange([...box.querySelectorAll(".tg.on")].map(x => x.dataset.v)); }
+    else onChange(b.dataset.v);
+  });
+  return v => box.querySelectorAll(".tg").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+}
+
+/* Slide 4 · T48: variación en vuelo vs desgaste */
+(() => {
+  const X = lin(0, 123, 0, 560);
+  const bar = (y, v, color, title, val) => `
+    <text class="t" x="0" y="${y - 18}">${title}</text>
+    <text class="v" x="560" y="${y - 16}" text-anchor="end">${val}</text>
+    <rect x="0" y="${y}" width="${X(v)}" height="12" rx="4" fill="${color}"><title>${title}: ${val}</title></rect>`;
+  put("ch-t48", svg(600, 250, `<text class="h" x="0" y="14">T48 · temperatura entre turbinas</text>`,
+    "T48: variación dentro de un vuelo ±123 °R contra desgaste de toda la vida +29 °R",
+    bar(78, 123, "#9a9a9a", "Variación dentro de un mismo vuelo", "±123 °R") + bar(186, 29, COL.amber, "Desgaste de toda la vida del motor", "+29 °R"), [0, 40, 560, 170]));
+})();
+
+/* Slide 5 · T48 medido ↔ residuo (transición animada) */
+(() => {
+  const D = DATA.norm, x0 = 70, x1 = 620, yT = 70, yB = 380;
+  const X = lin(1, D.x[D.x.length - 1], x0, x1);
+  const rmin = Math.min(...D.raw), rmax = Math.max(...D.raw), smin = Math.min(...D.res), smax = Math.max(...D.res);
+  const yr = D.raw.map(lin(rmin, rmax, yB, yT)), ys = D.res.map(lin(smin, smax, yB, yT)), xs = D.x.map(X);
+  const ox = X(D.onset);
+  put("ch-norm", svg(640, 440,
+    `<text class="h" id="nm-title" x="${x0}" y="20">Residuo (medido − motor sano)</text>
+     <text id="nm-rho" x="${x1}" y="20" text-anchor="end" style="fill:#fff">ρ con el RUL = −0,99</text>
+     <text id="nm-top" x="${x0 - 10}" y="${yT + 5}" text-anchor="end">${Math.round(smax)}</text>
+     <text id="nm-bot" x="${x0 - 10}" y="${yB + 5}" text-anchor="end">${Math.round(smin)}</text>
+     <line x1="${ox}" y1="${yT - 22}" x2="${ox}" y2="${yB + 6}" stroke="#9a9a9a" stroke-dasharray="2 5" stroke-width="1.2"/>
+     <text x="${ox + 8}" y="${yT - 10}">empieza la degradación →</text>
+     <line class="axis" x1="${x0}" y1="${yB + 20}" x2="${x1}" y2="${yB + 20}"/>
+     <text x="${x0}" y="${yB + 46}">vuelo 1</text><text x="${x1}" y="${yB + 46}" text-anchor="end">vuelo ${D.x[D.x.length - 1]} · falla</text>
+     <text x="${(x0 + x1) / 2}" y="${yB + 46}" text-anchor="middle">Motor 1 de DS01</text>`,
+    "T48 medido y su residuo a lo largo de la vida del motor 1 de DS01",
+    `<path id="nm-path" d="${pathOf(xs, ys)}" fill="none" stroke="${COL.amber}" stroke-width="2" stroke-linejoin="round" style="transition:stroke .5s"/>`,
+    [x0, yT, x1 - x0, yB - yT]));
+  const el = id => document.getElementById(id);
+  let state = "res", stop = () => {}, timer = 0;
+  const setTg = toggles("norm", v => { clearTimeout(timer); set(v); });
+  function set(to, animate = true){
+    setTg(to);
+    if (to === state && animate) return;
+    const from = state === "raw" ? yr : ys, dest = to === "raw" ? yr : ys; state = to;
+    stop(); stop = tween(animate ? 750 : 0, p => el("nm-path").setAttribute("d", pathOf(xs, from.map((y, i) => lerp(y, dest[i], p)))));
+    el("nm-path").setAttribute("stroke", to === "raw" ? "#bdbdbd" : COL.amber);
+    el("nm-title").textContent = to === "raw" ? "T48 medido [°R]" : "Residuo (medido − motor sano)";
+    el("nm-rho").textContent = "ρ con el RUL = " + (to === "raw" ? "−0,42" : "−0,99");
+    el("nm-top").textContent = Math.round(to === "raw" ? rmax : smax); el("nm-bot").textContent = Math.round(to === "raw" ? rmin : smin);
+  }
+  HOOKS["s-residuos"] = {
+    enter(){ clearTimeout(timer); if (reduced) return set("res", false); set("raw", false); timer = setTimeout(() => set("res"), 1500); },
+    leave(){ clearTimeout(timer); }, final(){ clearTimeout(timer); set("res", false); }
+  };
+})();
+
+/* Slide 8 · El modelo en acción: cursor por vuelo + recorrido automático */
+(() => {
+  const D = DATA.eng, w = 660, h = 470, x0 = 56, x1 = 640, yT = 70, yB = 420;
+  const X = lin(D.x[0], D.x[D.x.length - 1], x0, x1), Y = lin(0, 100, yB, yT);
+  const band = path(D.x, D.hi, X, Y) + D.x.slice().reverse().map((x, i) => "L" + X(x).toFixed(1) + " " + Y(D.lo[D.lo.length - 1 - i]).toFixed(1)).join("") + "Z";
+  const ticks = [0, 25, 50, 75, 100].map(v => `<text x="${x0 - 12}" y="${Y(v) + 5}" text-anchor="end">${v}</text>`).join("");
+  put("ch-eng", svg(w, h,
+    `<g>${swatch(x0, 18, COL.violet, "predicción")}${swatch(x0 + 140, 18, COL.violet, "intervalo 90 %", "band")}${swatch(x0 + 300, 18, COL.amber, "RUL real", "dash")}${swatch(x0 + 430, 18, GREEN, "cota inferior")}</g>
+     ${ticks}<line class="axis" x1="${x0}" y1="${yB}" x2="${x1}" y2="${yB}"/>
+     <text x="${x0}" y="452">vuelo ${D.x[0]}</text><text x="${x1}" y="452" text-anchor="end">vuelo ${D.x[D.x.length - 1]}</text>
+     <text x="${(x0 + x1) / 2}" y="452" text-anchor="middle">RUL en vuelos · ${esc(D.label)} (prueba)</text>`,
+    "Predicción de RUL vuelo a vuelo con intervalo del 90 % para " + D.label,
+    `<path d="${band}" fill="${COL.violet}" fill-opacity=".22"/>
+     <path d="${path(D.x, D.lo, X, Y)}" fill="none" stroke="${GREEN}" stroke-width="2"/>
+     <path d="${path(D.x, D.real, X, Y)}" fill="none" stroke="${COL.amber}" stroke-width="2" stroke-dasharray="6 5"/>
+     <path d="${path(D.x, D.pred, X, Y)}" fill="none" stroke="${COL.violet}" stroke-width="2.4"/>`, [x0, yT, x1 - x0, yB - yT]));
+  const svgEl = document.querySelector("#ch-eng svg");
+  svgEl.insertAdjacentHTML("beforeend", `
+     <g id="ea-cur" style="display:none;pointer-events:none">
+       <line id="ea-line" y1="${yT - 6}" y2="${yB}" stroke="#fff" stroke-width="1" stroke-opacity=".6"/>
+       <circle id="ea-p" r="5" fill="${COL.violet}" stroke="#000" stroke-width="2"/><circle id="ea-r" r="5" fill="${COL.amber}" stroke="#000" stroke-width="2"/>
+       <circle id="ea-l" r="5" fill="${GREEN}" stroke="#000" stroke-width="2"/>
+       <g id="ea-box"><rect x="-10" y="-24" width="224" height="132" fill="#000" fill-opacity=".85"/>
+         <text class="h" id="ea-t0" x="0" y="0" style="fill:${COL.amber}"></text>
+         <text class="t" id="ea-t1" x="0" y="24"></text><text class="t" id="ea-t2" x="0" y="46"></text>
+         <text class="t" id="ea-t3" x="0" y="68"></text><text class="t" id="ea-t4" x="0" y="90"></text></g>
+     </g>
+     <rect class="ix" id="ea-hit" x="${x0}" y="${yT}" width="${x1 - x0}" height="${yB - yT}" fill="transparent" style="cursor:crosshair"/>`);
+  const $ = id => document.getElementById(id);
+  function show(i){
+    if (i === null) { $("ea-cur").style.display = "none"; return; }
+    i = clamp(i, 0, D.x.length - 1);
+    const x = X(D.x[i]); $("ea-cur").style.display = "";
+    $("ea-line").setAttribute("x1", x); $("ea-line").setAttribute("x2", x);
+    $("ea-p").setAttribute("cx", x); $("ea-p").setAttribute("cy", Y(D.pred[i]));
+    $("ea-r").setAttribute("cx", x); $("ea-r").setAttribute("cy", Y(D.real[i]));
+    $("ea-l").setAttribute("cx", x); $("ea-l").setAttribute("cy", Y(D.lo[i]));
+    $("ea-box").setAttribute("transform", `translate(${x > (x0 + x1) / 2 ? x - 236 : x + 20},${yT + 24})`);
+    $("ea-t0").textContent = "Vuelo " + D.x[i];
+    $("ea-t1").textContent = "Predicción  " + fmt(D.pred[i]);
+    $("ea-t2").textContent = "Intervalo 90 %  " + fmt(D.lo[i]) + " – " + fmt(D.hi[i]);
+    $("ea-t3").textContent = "Cota inferior  " + fmt(D.lo[i]);
+    $("ea-t4").textContent = "RUL real  " + D.real[i];
+  }
+  const idxAt = e => { const r = svgEl.getBoundingClientRect(); const vx = (e.clientX - r.left) * w / r.width;
+    return Math.round((vx - x0) / (x1 - x0) * (D.x.length - 1)); };
+  const btn = $("btn-eng-play");
+  let stopPlay = () => {};
+  $("ea-hit").addEventListener("pointermove", e => { stopPlay(); show(idxAt(e)); });
+  $("ea-hit").addEventListener("pointerleave", () => { if (!btn.textContent.startsWith("■")) show(null); });
+  btn.addEventListener("click", () => {
+    if (btn.textContent.startsWith("■")) return stopPlay();
+    stopPlay();
+    if (reduced) { show(D.x.length - 1); return; }
+    let alive = true; const t0 = performance.now(), dur = 6500;
+    btn.textContent = "■ Detener";
+    stopPlay = () => { alive = false; btn.textContent = "▶ Recorrer el motor"; };
+    const step = now => { if (!alive) return; const p = Math.min(1, (now - t0) / dur); show(Math.round(p * (D.x.length - 1)));
+      if (p < 1) requestAnimationFrame(step); else stopPlay(); };
+    requestAnimationFrame(step);
+  });
+  HOOKS["s-accion"] = { leave(){ stopPlay(); show(null); }, final(){ stopPlay(); show(null); } };
+})();
+
+/* Slide 9 · Cobertura: sin calibrar ↔ ACI (las barras crecen o se achican) */
+(() => {
+  const D = DATA.cov, w = 660, h = 440, x0 = 56, x1 = 640, yT = 50, yB = 380;
+  const Y = lin(0, 100, yB, yT), gw = (x1 - x0) / D.x.length, bw = 56;
+  const names = D.x.map(s => s.replace("–999", "+").replace("75+", "75 o más"));
+  let marks = "", labels = "";
+  D.x.forEach((_, i) => {
+    const cx = x0 + gw * i + gw / 2;
+    marks += `<rect class="bar" id="cv-b${i}" x="${cx - bw / 2}" y="${Y(D.aci[i])}" width="${bw}" height="${yB - Y(D.aci[i])}" rx="4" fill="${COL.violet}"><title>RUL ${names[i]} · sin calibrar ${fmt(D.raw[i])} % · ACI ${fmt(D.aci[i])} %</title></rect>
+      <line x1="${cx - bw / 2 - 6}" x2="${cx + bw / 2 + 6}" y1="${Y(D.raw[i])}" y2="${Y(D.raw[i])}" stroke="#bdbdbd" stroke-width="2"/>`;
+    labels += `<text class="t" id="cv-v${i}" x="${cx}" y="${Y(D.aci[i]) - 10}" text-anchor="middle">${fmt(D.aci[i])}</text>
+      <text x="${cx}" y="${yB + 26}" text-anchor="middle">${names[i]}</text>`;
+  });
+  put("ch-cov", svg(w, h,
+    `<g>${swatch(x0, 14, "#bdbdbd", "rayita = sin calibrar")}${swatch(x0 + 200, 14, COL.violet, `<tspan id="cv-leg">barra = conformal adaptativo (ACI)</tspan>`)}</g>
+     ${[0, 50, 100].map(v => `<text x="${x0 - 12}" y="${Y(v) + 5}" text-anchor="end">${v}</text>`).join("")}
+     <line class="axis" x1="${x0}" y1="${yB}" x2="${x1}" y2="${yB}"/>
+     <line x1="${x0}" y1="${Y(90)}" x2="${x1}" y2="${Y(90)}" stroke="${COL.amber}" stroke-dasharray="5 5" stroke-width="1.3"/>
+     <text x="${x1}" y="${Y(90) - 8}" text-anchor="end" style="fill:${COL.amber}">objetivo 90 %</text>
+     ${labels}
+     <text x="${(x0 + x1) / 2}" y="${yB + 54}" text-anchor="middle">Cobertura [%] por tramo de RUL real [vuelos] · cerca de la falla ←</text>`,
+    "Cobertura del intervalo por tramo de RUL, sin calibrar contra ACI", marks, [x0, yT, x1 - x0, yB - yT]));
+  let state = "aci", stop = () => {}, timer = 0;
+  const setTg = toggles("cov", v => { clearTimeout(timer); set(v); });
+  function set(to, animate = true){
+    setTg(to);
+    if (to === state && animate) return;
+    const from = state === "raw" ? D.raw : D.aci, dest = to === "raw" ? D.raw : D.aci; state = to;
+    stop(); stop = tween(animate ? 800 : 0, p => D.x.forEach((_, i) => {
+      const v = lerp(from[i], dest[i], p), b = document.getElementById("cv-b" + i), t = document.getElementById("cv-v" + i);
+      b.setAttribute("y", Y(v)); b.setAttribute("height", yB - Y(v)); t.setAttribute("y", Y(v) - 10); t.textContent = fmt(v);
+    }));
+    D.x.forEach((_, i) => document.getElementById("cv-b" + i).setAttribute("fill", to === "raw" ? "#6b6b6b" : COL.violet));
+    document.getElementById("cv-leg").textContent = to === "raw" ? "barra = sin calibrar" : "barra = conformal adaptativo (ACI)";
+  }
+  HOOKS["s-calibrar"] = {
+    enter(){ clearTimeout(timer); if (reduced) return set("aci", false); set("raw", false); timer = setTimeout(() => set("aci"), 1300); },
+    leave(){ clearTimeout(timer); }, final(){ clearTimeout(timer); set("aci", false); }
+  };
+})();
+
+/* Slide 10 · Predicción puntual ↔ cota inferior */
+(() => {
+  const D = DATA.eng, n = D.x.length;
+  const overPred = D.pred.map((v, i) => v > D.real[i]), overLo = D.lo.map((v, i) => v > D.real[i]);
+  const cP = overPred.filter(Boolean).length, cL = overLo.filter(Boolean).length;
+  const w = 600, h = 96, sw = w / n;
+  let marks = "";
+  for (let i = 0; i < n; i++) marks += `<rect id="ct-${i}" x="${(i * sw + 1).toFixed(1)}" y="34" width="${(sw - 2).toFixed(1)}" height="30" rx="2" fill="${overLo[i] ? COL.amber : "#333"}" style="transition:fill .35s ${i * 6}ms"><title>Vuelo ${D.x[i]}</title></rect>`;
+  put("ch-cota", svg(w, h, `<text class="h" x="0" y="14">${esc(D.label)} · un vuelo por rayita</text>
+    <text id="ct-count" x="${w}" y="14" text-anchor="end" style="fill:#fff">${cL} de ${n} vuelos sobreestimados</text>
+    <text x="0" y="88">vuelo ${D.x[0]}</text><text x="${w}" y="88" text-anchor="end">vuelo ${D.x[n - 1]} · falla</text>`,
+    "Vuelos sobreestimados en " + D.label, marks, [0, 30, w, 40]));
+  const num = document.getElementById("cota-num"), cap = document.getElementById("cota-cap");
+  let state = "lo", stop = () => {}, timer = 0;
+  const setTg = toggles("cota", v => { clearTimeout(timer); set(v); });
+  function set(to, animate = true){
+    setTg(to);
+    if (to === state && animate) return;
+    const from = state === "pred" ? 52.4 : 4.7, dest = to === "pred" ? 52.4 : 4.7; state = to;
+    stop(); stop = tween(animate ? 800 : 0, p => { const v = lerp(from, dest, p);
+      num.innerHTML = (p >= 1 ? (to === "pred" ? "52" : "4,7") : fmt(v, v > 10 ? 0 : 1)) + '<span class="u">%</span>'; });
+    num.classList.toggle("iris", to === "lo"); num.classList.toggle("mistc", to === "pred");
+    cap.textContent = to === "pred"
+      ? "de los vuelos de prueba: la predicción puntual sobreestima la vida."
+      : "de los vuelos de prueba: la cota inferior queda por encima del RUL real (con la predicción puntual, 52 %).";
+    (to === "pred" ? overPred : overLo).forEach((o, i) => document.getElementById("ct-" + i).setAttribute("fill", o ? COL.amber : "#333"));
+    document.getElementById("ct-count").textContent = (to === "pred" ? cP : cL) + " de " + n + " vuelos sobreestimados";
+  }
+  HOOKS["s-cota"] = {
+    enter(){ clearTimeout(timer); if (reduced) return set("lo", false); set("pred", false); timer = setTimeout(() => set("lo"), 1600); },
+    leave(){ clearTimeout(timer); }, final(){ clearTimeout(timer); set("lo", false); }
+  };
+})();
+
+/* Slide 11 · Modelo final: etapa 1 vs CV+ (toggle de métrica) */
+(() => {
+  const rows = DATA.cv.rows, num = v => parseFloat(String(v).replace(" %", "").replace(",", "."));
+  const names = ["Etapa 1 · 11 motores + ACI", "CV+ · 60 motores", "CV+ y ACI · modelo final"], cols = ["#9a9a9a", GREEN, COL.violet];
+  const M = { 4: { t: "Cota inferior que sobreestima [% de vuelos]", max: 8, ref: 3, refT: "tolerancia 3 %", u: " %" },
+              3: { t: "Cobertura del intervalo [%]", max: 100, ref: 90, refT: "objetivo 90 %", u: " %" },
+              5: { t: "Ancho medio del intervalo [vuelos]", max: 30, ref: null, u: "" } };
+  const w = 600, X0 = 0, XW = 470;
+  let marks = "", txt = "";
+  names.forEach((nm, i) => { const y = 90 + i * 92;
+    txt += `<text class="t" x="0" y="${y - 16}">${nm}</text>`;
+    marks += `<rect id="cvp-b${i}" x="0" y="${y}" width="0" height="12" rx="4" fill="${cols[i]}"/><text class="v" id="cvp-v${i}" x="16" y="${y + 13}"></text>`; });
+  put("ch-cv", svg(w, 380, `<text class="h" id="cvp-t" x="0" y="14"></text>` + txt +
+    `<g id="cvp-ref" class="fade"><line id="cvp-rl" y1="40" y2="300" stroke="${COL.amber}" stroke-dasharray="5 5" stroke-width="1.3"/><text id="cvp-rt" y="330" text-anchor="middle" style="fill:${COL.amber}"></text></g>`,
+    "Etapa 1 contra modelo final CV+ en los 39 motores de prueba", marks, [0, 60, 560, 260]));
+  const $ = id => document.getElementById(id);
+  let key = "4", cur = [0, 0, 0], stop = () => {};
+  const setTg = toggles("cv", v => set(v));
+  function set(k, animate = true){
+    setTg(k); key = k; const m = M[k], X = v => X0 + v / m.max * XW;
+    const dest = rows.map(r => num(r[+k])), from = cur.slice();
+    $("cvp-t").textContent = m.t;
+    $("cvp-ref").style.opacity = m.ref === null ? 0 : 1;
+    if (m.ref !== null) { $("cvp-rl").setAttribute("x1", X(m.ref)); $("cvp-rl").setAttribute("x2", X(m.ref)); $("cvp-rt").setAttribute("x", X(m.ref)); $("cvp-rt").textContent = m.refT; }
+    stop(); stop = tween(animate ? 700 : 0, p => dest.forEach((v, i) => {
+      const val = lerp(from[i], v, p); cur[i] = val;
+      $("cvp-b" + i).setAttribute("width", Math.max(0, X(val)));
+      $("cvp-v" + i).setAttribute("x", X(val) + 16); $("cvp-v" + i).textContent = p >= 1 ? rows[i][+k] : fmt(val) + m.u;
+    }));
+  }
+  set("4", false);
+  HOOKS["s-cvplus"] = { final(){ set("4", false); } };
+})();
+
+/* Slide 12 · Política de inspección: vida desperdiciada por motor */
+(() => {
+  const c = DATA.cv, num = v => parseFloat(String(v).replace(",", "."));
+  const rows = [["Vida fija por clase de vuelo", c.waste_fixed, "#9a9a9a"], ["Regla sobre la mediana", c.waste_med, GREEN], ["Cota inferior CV+ · modelo final", c.waste, COL.violet]];
+  const X = lin(0, 18, 0, 470); let marks = "", txt = "";
+  rows.forEach(([nm, v, col], i) => { const y = 90 + i * 92;
+    txt += `<text class="t" x="0" y="${y - 16}">${nm}</text>`;
+    marks += `<rect x="0" y="${y}" width="${X(num(v))}" height="12" rx="4" fill="${col}"><title>${nm}: ${v} vuelos por motor</title></rect>
+              <text class="v" x="${X(num(v)) + 16}" y="${y + 13}">${v}</text>`; });
+  put("ch-insp", svg(600, 360, `<text class="h" x="0" y="14">Vida desperdiciada por motor [vuelos] · 39 motores de prueba</text>` + txt +
+    `<text x="0" y="350">inspección tardía: ${c.late} con la cota inferior · ${c.late_fixed} con la vida fija · τ = ${c.tau} vuelos</text>`,
+    "Vida desperdiciada por motor según la política de inspección", marks, [0, 60, 560, 260]));
+})();
+
+/* Slide 13 · Línea 2 */
+(() => {
+  const rows = [["Todas las clases · 60 motores", 7.69, GREEN], ["Todas las clases · 14 motores (control)", 9.29, "#9a9a9a"], ["Sólo vuelos cortos · 14 motores", 14.66, COL.amber]];
+  const X = lin(0, 16, 0, 470); let marks = "", txt = "";
+  rows.forEach(([name, v, c], i) => { const y = 80 + i * 96;
+    txt += `<text class="t" x="0" y="${y - 16}">${name}</text>`;
+    marks += `<rect x="0" y="${y}" width="${X(v)}" height="12" rx="4" fill="${c}"><title>${name}: RMSE ${fmt(v, 2)}</title></rect>
+              <text class="v" x="${X(v) + 16}" y="${y + 13}">${fmt(v, 2)}</text>`; });
+  put("ch-l2", svg(600, 340, `<text class="h" x="0" y="14">RMSE en motores de vuelos largos [vuelos]</text>` + txt,
+    "RMSE en vuelos largos según los datos de entrenamiento", marks, [0, 60, 560, 260]));
+})();
+
+/* Slide 15 · Línea de tiempo de la degradación (DS02 · motor 15, índice de salud real) */
+(() => {
+  const D = DATA.l3ex, n = D.x.length, w = 600, h = 150, x0 = 10, x1 = 590, yT = 26, yB = 112;
+  const hmax = Math.max(...D.hi);
+  const X = lin(1, n, x0, x1), Y = lin(0, hmax, yB, yT);
+  const xs = D.x.map(X), ys = D.hi.map(Y), alarm = D.alarm["CUSUM online"], onset = D.onset;
+  put("ch-tl", `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Índice de salud de ${esc(D.label)} con la alarma del CUSUM">
+    <text class="h" x="${x0}" y="12">Índice de salud · ${esc(D.label)} (prueba)</text>
+    <line class="axis" x1="${x0}" y1="${yB}" x2="${x1}" y2="${yB}"/>
+    <line x1="${X(onset)}" x2="${X(onset)}" y1="${yT}" y2="${yB}" stroke="#9a9a9a" stroke-dasharray="2 5"/>
+    <text x="${X(onset) - 6}" y="${yB + 22}" text-anchor="end">inicio real · vuelo ${onset}</text>
+    <g id="tl-alarm" class="fade" style="opacity:0"><line x1="${X(alarm)}" x2="${X(alarm)}" y1="${yT}" y2="${yB}" stroke="${COL.violet}" stroke-width="2"/>
+      <text x="${X(alarm) + 6}" y="${yB + 22}" style="fill:${COL.violet};font-weight:600">alarma CUSUM · vuelo ${alarm}</text></g>
+    <path id="tl-path" fill="none" stroke="${COL.amber}" stroke-width="2" stroke-linejoin="round"/>
+    <circle id="tl-dot" r="4.5" fill="${COL.amber}" stroke="#000" stroke-width="2"/>
+    <text x="${x1}" y="${yB + 22}" text-anchor="end">falla · vuelo ${n}</text>
+  </svg>`);
+  const $ = id => document.getElementById(id);
+  const range = $("tl-range"), btn = $("btn-tl-play"), cap = $("tl-cap");
+  const cv = document.querySelector("#s-linea3 canvas.engine");
+  let f = n, stopPlay = () => {}, timer = 0;
+  function setF(v){
+    f = clamp(Math.round(v), 1, n); range.value = f;
+    $("tl-path").setAttribute("d", pathOf(xs.slice(0, f), ys.slice(0, f)));
+    $("tl-dot").setAttribute("cx", xs[f - 1]); $("tl-dot").setAttribute("cy", ys[f - 1]);
+    $("tl-alarm").style.opacity = f >= alarm ? 1 : 0;
+    engState(cv).deg = clamp(D.hi[f - 1] / hmax, 0, 1); dirty = true;
+    const st = f < onset ? "motor sano" : f < alarm ? "se degrada HPT · LPT, todavía sin alarma" : f < n ? `alarma CUSUM ${alarm - onset} vuelos después del inicio` : "falla del motor";
+    cap.innerHTML = `<b>VUELO ${f} DE ${n}</b> &nbsp;${st}`;
+  }
+  range.addEventListener("input", () => { stopPlay(); setF(+range.value); });
+  function play(){
+    stopPlay();
+    if (reduced) { setF(n); return; }
+    let alive = true; const s0 = f >= n ? 1 : f, t0 = performance.now(), dur = 7000 * (n - s0) / n;
+    btn.textContent = "■ Pausa";
+    stopPlay = () => { alive = false; btn.textContent = "▶ Reproducir"; };
+    const step = now => { if (!alive) return; const p = Math.min(1, (now - t0) / Math.max(1, dur)); setF(lerp(s0, n, p));
+      if (p < 1) requestAnimationFrame(step); else stopPlay(); };
+    requestAnimationFrame(step);
+  }
+  btn.addEventListener("click", () => { if (btn.textContent.startsWith("■")) stopPlay(); else play(); });
+  setF(n);
+  HOOKS["s-linea3"] = {
+    enter(){ clearTimeout(timer); if (reduced) return setF(n); setF(1); timer = setTimeout(play, 700); },
+    leave(){ clearTimeout(timer); stopPlay(); }, final(){ clearTimeout(timer); stopPlay(); setF(n); }
+  };
+})();
+
+/* Slide 16 · Detectores: prender/apagar y pasar el mouse por cada punto */
+(() => {
+  const D = DATA.l3, w = 660, h = 450, x0 = 150, x1 = 640, X = lin(-15, 42, x0, x1);
+  const meta = [["CUSUM online", COL.violet, "CUSUM online"], ["PELT offline", GREEN, "PELT offline"], ["Umbral sobre T48", COL.amber, "Umbral T48"]];
+  let g = "", txt = "";
+  meta.forEach(([k, c, lab], i) => {
+    const ys = D[k], yc = 90 + i * 110, R = rng(5 + i), sorted = ys.slice().sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    txt += `<text class="t fade" data-m="${k}" x="0" y="${yc + 6}">${lab}</text>`;
+    g += `<g class="fade" data-m="${k}">`;
+    ys.forEach(v => { const cy = yc + (R() - .5) * 46;
+      g += `<circle class="pt" data-lab="${lab}" data-v="${v}" cx="${X(v)}" cy="${cy.toFixed(1)}" r="4.5" fill="${c}" fill-opacity=".85" stroke="#000" stroke-width="1.5" style="cursor:pointer"/>`; });
+    g += `<line x1="${X(med)}" y1="${yc - 34}" x2="${X(med)}" y2="${yc + 34}" stroke="#fff" stroke-width="2"/>
+          <text x="${X(med) + 8}" y="${yc - 26}" style="fill:#fff">mediana ${med > 0 ? "+" : ""}${med}</text></g>`;
+  });
+  put("ch-l3", svg(w, h,
+    `<line x1="${X(0)}" y1="40" x2="${X(0)}" y2="370" stroke="#9a9a9a" stroke-dasharray="2 5" stroke-width="1.2"/>
+     <text x="${X(0)}" y="28" text-anchor="middle">inicio real</text>${txt}
+     <line class="axis" x1="${x0}" y1="380" x2="${x1}" y2="380"/>
+     ${[-10, 0, 10, 20, 30, 40].map(v => `<text x="${X(v)}" y="402" text-anchor="middle">${v > 0 ? "+" : ""}${v}</text>`).join("")}
+     <text x="${(x0 + x1) / 2}" y="426" text-anchor="middle">vuelos entre el inicio real y la alarma · cada punto es un motor de prueba</text>`,
+    "Demora de la alarma de cada detector en los motores de prueba", g, [x0 - 10, 40, x1 - x0 + 20, 330]));
+  const svgEl = document.querySelector("#ch-l3 svg");
+  svgEl.classList.add("ix");
+  svgEl.insertAdjacentHTML("beforeend", `<g id="l3-tip" style="display:none;pointer-events:none"><rect x="-10" y="-22" width="290" height="56" fill="#000" fill-opacity=".88"/>
+       <text class="h" id="l3-t0" x="0" y="0" style="fill:${COL.amber}"></text><text class="t" id="l3-t1" x="0" y="22"></text></g>`);
+  const tip = document.getElementById("l3-tip");
+  svgEl.addEventListener("pointerover", e => {
+    const c = e.target.closest(".pt"); if (!c) return;
+    const v = +c.dataset.v, cx = +c.getAttribute("cx"), cy = +c.getAttribute("cy");
+    document.getElementById("l3-t0").textContent = c.dataset.lab;
+    document.getElementById("l3-t1").textContent = v === 0 ? "alarma en el mismo vuelo del inicio" : `alarma ${Math.abs(v)} vuelos ${v > 0 ? "después" : "antes"} del inicio real`;
+    tip.setAttribute("transform", `translate(${cx > 330 ? cx - 300 : cx + 16},${cy - 6})`); tip.style.display = "";
+    c.setAttribute("r", 7);
+  });
+  svgEl.addEventListener("pointerout", e => { const c = e.target.closest(".pt"); if (c) { c.setAttribute("r", 4.5); tip.style.display = "none"; } });
+  toggles("l3", on => svgEl.querySelectorAll("[data-m]").forEach(el => { const vis = on.includes(el.dataset.m); el.style.opacity = vis ? 1 : 0; el.style.pointerEvents = vis ? "" : "none"; }));
+})();
+
+/* ══════════ Inicio ══════════ */
+prepCount();
+const start = parseInt(location.hash.slice(1), 10);
+document.body.classList.add("init");
+cur = start ? clamp(start - 1, 0, N - 1) : 0;
+fit();
+go(cur, true);
+requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove("init")));
+requestAnimationFrame(frame);
+setTimeout(makePrintImages, 400);
+})();
+</script>
+</body>
+</html>

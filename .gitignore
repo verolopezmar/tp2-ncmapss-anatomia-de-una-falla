@@ -42,6 +42,9 @@ paper_phm2027/*.synctex.gz
 # --- Sistema / editores ---
 .DS_Store
 Thumbs.db
+ehthumbs.db
+~$*
+*.tmp
 desktop.ini
 .vscode/
 .idea/
