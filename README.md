@@ -8,6 +8,11 @@ la falla bajo perfiles de vuelo reales), con **intervalos de incertidumbre que c
 y una **política de inspección** derivada de esos intervalos. El trabajo dio origen a un abstract para la
 *PHM Society Annual Conference 2027*.
 
+> **En corto.** EDA y modelado de la vida útil remanente de motores turbofan (NASA N-CMAPSS) con intervalos que
+> controlan la sobreestimación. **Presentación:** abrí [`presentacion.html`](presentacion.html) con doble clic (funciona
+> sin servidor; `?` muestra los atajos). **Reproducir:** `pip install -r requirements.txt` y
+> `python scripts/run_all.py` (o `--only report entrega` para rehacer los informes sólo con `outputs/full/`).
+
 ---
 
 ## Empezá acá
@@ -17,11 +22,11 @@ y una **política de inspección** derivada de esos intervalos. El trabajo dio o
 | Ver el **modelo final** y sus resultados en una página | [`reports/entrega_modelo.html`](reports/entrega_modelo.html) (descargalo y abrilo en el navegador; funciona sin conexión) |
 | Recorrer el **modelo final** con código y tablas | [`notebooks/04_modelo_final.ipynb`](notebooks/04_modelo_final.ipynb) |
 | Leer el **abstract para PHM 2027** | [`paper_phm2027/main.tex`](paper_phm2027/main.tex) (plantilla oficial de PHM Society) |
-| Ver la **presentación** del TP (EDA, Línea 1, Líneas 2 y 3, cambios finales) | [`reports/informe_final.html`](reports/informe_final.html) |
+| Ver la **presentación** del TP (interactiva: EDA, Línea 1 y modelo final, Líneas 2 y 3) | [`presentacion.html`](presentacion.html) (doble clic; `O` vista general, `N` notas, `?` ayuda) |
+| Ver el **informe corto** con los gráficos del pipeline | [`reports/informe_final.html`](reports/informe_final.html) |
 | Ver el **EDA** completo | [`notebooks/01_eda.ipynb`](notebooks/01_eda.ipynb) y el anexo [`reports/informe_completo.html`](reports/informe_completo.html) |
 | Ver la **etapa 1** (CatBoost contra TFT con 11 motores de calibración) | [`notebooks/02_rul_incertidumbre.ipynb`](notebooks/02_rul_incertidumbre.ipynb) |
 | Ver los **experimentos de las Líneas 2 y 3** | [`notebooks/03_lineas_futuras.ipynb`](notebooks/03_lineas_futuras.ipynb) |
-| Ver la **Parte I** (presentada antes) | [`compartir.html`](compartir.html) |
 
 > Las notebooks de GitHub muestran las tablas, pero las figuras interactivas (plotly) sólo se ven al abrirlas en Jupyter o
 > VS Code con conexión. Los HTML de `reports/` traen todo incluido.
@@ -207,7 +212,7 @@ notebooks/               01_eda · 02_rul_incertidumbre (etapa 1) · 03_lineas_f
 outputs/full/            resultados de la corrida final (JSON y parquet livianos, versionados)
 reports/                 entrega_modelo.html · informe_final.html · informe_completo.html
 paper_phm2027/           abstract para PHM 2027 (main.tex + PHMSociety.cls) y estado del arte
-compartir.html           Parte I
+presentacion.html        presentación interactiva (un solo archivo, sin servidor); estética en DESIGN.md
 ```
 
 Nada está escrito a mano: los números, tablas y gráficos de informes y notebooks se calculan desde los datos y se leen

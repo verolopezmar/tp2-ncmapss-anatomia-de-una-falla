@@ -2,7 +2,7 @@
 
 Las figuras se guardan como dicts {data, layout} en JSON. Los colores se escriben como
 variables CSS (p. ej. "var(--hud)"): el informe HTML los traduce con la paleta de la
-página (igual que compartir.html). Para verlas en un notebook, `to_plotly` reemplaza
+página (igual que en la Parte I). Para verlas en un notebook, `to_plotly` reemplaza
 esas variables por los colores reales leídos de la hoja de estilos.
 """
 from __future__ import annotations

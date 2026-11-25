@@ -2,7 +2,7 @@
 
 Lee outputs/<modo>/{eda,results,line2,line3}.json, junta figuras, cifras y lecturas, redacta
 las conclusiones a partir de esos números y las inyecta en la plantilla Jinja2, que reutiliza
-la hoja de estilos y las ilustraciones de compartir.html (Parte I). Plotly va embebido para
+la hoja de estilos y las ilustraciones de la Parte I. Plotly va embebido para
 que el informe funcione sin conexión.
 """
 from __future__ import annotations
