@@ -28,7 +28,7 @@
   <div class="brand"><span class="dot"></span>N-CMAPSS · LAB II · TP2 · PARTE II</div>
   <nav class="chapnav" id="chapnav">
     <a href="#c0">00 INTRO</a><a href="#c1">01 DATOS</a><a href="#c2">02 VUELO</a><a href="#c3">03 CONTEXTO</a><a href="#c4">04 DESGASTE</a>
-    <a href="#c5">05 SEÑALES</a><a href="#c6">06 VIDA</a><a href="#c7">07 MÉTODO</a><a href="#c8">08 RUL</a><a href="#c9">09 CERTEZA</a><a href="#c10">10 FUTURO</a>
+    <a href="#c5">05 SEÑALES</a><a href="#c6">06 VIDA</a><a href="#c7">07 MÉTODO</a><a href="#c8">08 RUL</a><a href="#c9">09 CERTEZA</a>{% if F.p_cv_rows %}<a href="#cfinal">10 FINAL</a><a href="#c10">11 FUTURO</a>{% else %}<a href="#c10">10 FUTURO</a>{% endif %}
   </nav>
 </header>
 <aside class="altimeter" id="altimeter" aria-hidden="true">
@@ -420,8 +420,10 @@
 <!-- ═══ 08 · RESULTADOS ════════════════════════════════════════════════════════ -->
 <section class="chapter" id="c8">
   <div class="chap-head reveal"><div class="chap-num" data-phase="DESCENSO">08</div>
-    <div><div class="chap-kicker">Resultados · Línea 1</div><h2 class="split">Cuántos vuelos le quedan</h2></div></div>
-  <div class="prose reveal"><p>Todo lo que sigue se mide en los <b>motores de prueba oficiales</b>, que ningún modelo vio. Ambos modelos se evalúan sobre los mismos vuelos.</p></div>
+    <div><div class="chap-kicker">Resultados · Línea 1{{ " · etapa 1" if F.p_cv_rows else "" }}</div><h2 class="split">Cuántos vuelos le quedan</h2></div></div>
+  <div class="prose reveal"><p>Todo lo que sigue se mide en los <b>motores de prueba oficiales</b>, que ningún modelo vio. Ambos modelos se evalúan sobre los mismos vuelos.</p>
+  {% if F.p_cv_rows %}<p><b>Etapa 1:</b> los intervalos de los capítulos 08 y 09 se calibran con {{ F.p_calib_units }} motores. El modelo final, calibrado con los
+  {{ F.p_cv_units }} motores de desarrollo, está en el <a href="#cfinal">capítulo 10</a>.</p>{% endif %}</div>
   <div class="glass panel reveal">
     <div class="label">Métricas en prueba · fila destacada = modelo elegido en validación, con ACI</div>
     <div class="tbl-wrap" id="metricsTable"></div>
@@ -479,9 +481,42 @@
   <div class="glass panel prose discussion reveal" id="discussion" style="max-width:none"></div>
 </section>
 
+<!-- ═══ 10 · MODELO FINAL ══════════════════════════════════════════════════════ -->
+{% if F.p_cv_rows %}
+<section class="chapter" id="cfinal">
+  <div class="chap-head reveal"><div class="chap-num" data-phase="APROXIMACIÓN">10</div>
+    <div><div class="chap-kicker">Línea 1 · resultado final</div><h2 class="split">Modelo final: calibrar con todos los motores y decidir cuándo inspeccionar</h2></div></div>
+  <div class="prose reveal">
+    <p>La etapa 1 calibraba con sólo {{ F.p_calib_units }} motores. El modelo final usa los {{ F.p_cv_units }} motores de desarrollo: se dividen en
+    {{ F.p_cv_folds }} grupos y, para cada grupo, se reentrena <b>todo el pipeline</b> (modelo de motor sano, residuos y CatBoost con {{ F.p_cv_iters }}
+    iteraciones) sin esos motores. Así cada motor de desarrollo aporta errores fuera de muestra para calibrar intervalos <b>CV+ asimétricos</b>
+    (3 % de tolerancia a sobreestimar y 7 % a subestimar). Una <b>actualización adaptativa de flota (ACI)</b> corrige el nivel de cada cola cada vez que
+    un motor falla y se conoce su vida real. Por último, la cota inferior se convierte en una <b>política de inspección</b>, con umbral elegido en desarrollo.</p>
+  </div>
+  <div class="sn">
+    <div class="glass sn-card reveal"><div class="k">SOBREESTIMACIÓN (CON ACI)</div><div class="big" style="color:var(--orange)">{{ F.p_cv_over }}</div>
+      <div class="t">de los vuelos con la cota inferior sobre el RUL real, contra {{ F.p_cv_over_base }} de la etapa 1 con ACI.</div></div>
+    <div class="glass sn-card reveal d1"><div class="k">COBERTURA (CON ACI)</div><div class="big" style="color:var(--hud)">{{ F.p_cv_cov }}</div>
+      <div class="t">contra {{ F.p_cv_cov_base }} de la etapa 1 con ACI; intervalos de {{ F.p_cv_width }} vuelos contra {{ F.p_cv_width_base }}.</div></div>
+    <div class="glass sn-card reveal d2"><div class="k">VIDA ÚTIL DESPERDICIADA</div><div class="big" style="color:var(--navy)">{{ F.p_cv_waste }}</div>
+      <div class="t">vuelos por motor al inspeccionar con la cota inferior, contra {{ F.p_cv_waste_fixed }} con una vida fija por clase (ahorro de {{ F.p_cv_save_lo }} a {{ F.p_cv_save_hi }}, IC 95 %).</div></div>
+  </div>
+  <div class="glass panel reveal"><div class="label">Antes y después · {{ F.p_cv_test_units }} motores de prueba</div><div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>Modelo</th><th>RMSE</th><th>Score NASA</th><th>Cobertura</th><th>Sobreestima</th><th>Ancho [vuelos]</th></tr></thead>
+    <tbody>{% for r in F.p_cv_rows %}<tr>{% for c in r %}<td>{{ c }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+  </table></div></div>
+  <div class="grid2">
+    <div class="glass panel reveal" style="margin:0"><h4>Qué cambiamos</h4><ul class="points">{% for p in S.final_changes %}<li>{{ p }}</li>{% endfor %}</ul></div>
+    <div class="glass panel reveal d1" style="margin:0"><h4>Qué hay que tener en cuenta</h4><ul class="points hot">{% for p in S.final_notes %}<li>{{ p }}</li>{% endfor %}</ul></div>
+  </div>
+  <div class="prose reveal"><p>Intervalos de confianza por motor, resultados por subconjunto y la demo motor a motor:
+    <a href="entrega_modelo.html">entrega_modelo.html</a> y <code>notebooks/04_modelo_final.ipynb</code>.</p></div>
+</section>
+{% endif %}
+
 <!-- ═══ 10 · LÍNEAS FUTURAS ════════════════════════════════════════════════════ -->
 <section class="chapter" id="c10">
-  <div class="chap-head reveal"><div class="chap-num" data-phase="ATERRIZAJE">10</div>
+  <div class="chap-head reveal"><div class="chap-num" data-phase="ATERRIZAJE">{{ 11 if F.p_cv_rows else 10 }}</div>
     <div><div class="chap-kicker">Líneas 2 y 3 · trabajo futuro</div><h2 class="split">Lo que viene</h2></div></div>
   <div class="prose reveal"><p>Las otras dos líneas propuestas quedan como trabajo futuro. Para fundamentarlas hicimos un <b>experimento simple de cada una</b> con los datos reales.</p></div>
 
@@ -513,20 +548,20 @@
 
 <!-- ═══ 11 · CIERRE ════════════════════════════════════════════════════════════ -->
 <section class="chapter" id="c11">
-  <div class="chap-head reveal"><div class="chap-num" data-phase="EN TIERRA">11</div>
+  <div class="chap-head reveal"><div class="chap-num" data-phase="EN TIERRA">{{ 12 if F.p_cv_rows else 11 }}</div>
     <div><div class="chap-kicker">Conclusiones y limitaciones</div><h2 class="split">Qué aprendimos</h2></div></div>
   <div class="takeaways" id="conclusions"></div>
   <h3 class="reveal">Limitaciones</h3>
   <div class="limits">
     <div class="glass limit reveal"><b>Datos simulados.</b> C-MAPSS es un modelo físico alimentado con vuelos reales: las conclusiones habría que validarlas con datos de operación.</div>
     <div class="glass limit reveal d1"><b>Archivo dañado.</b> <span data-kpi="bad_ds">—</span> viene truncado en Kaggle y quedó afuera; el pipeline lo detecta y lo informa.</div>
-    <div class="glass limit reveal"><b>Pocos motores.</b> Con <span data-kpi="n_units">—</span> motores, la calibración usa pocas unidades y la garantía conformal es aproximada: los vuelos de un mismo motor no son independientes.</div>
+    <div class="glass limit reveal"><b>Pocos motores.</b> {% if F.p_cv_rows %}El modelo final calibra con los {{ F.p_cv_units }} motores de desarrollo y se evalúa en {{ F.p_cv_test_units }}: cada inspección tardía vale mucho y la cobertura conformal es aproximada, porque los vuelos de un mismo motor no son independientes.{% else %}Con <span data-kpi="n_units">—</span> motores, la calibración usa pocas unidades y la garantía conformal es aproximada: los vuelos de un mismo motor no son independientes.{% endif %}</div>
     <div class="glass limit reveal d1"><b>Retroalimentación demorada.</b> El RUL real sólo se conoce cuando el motor falla: el ACI aprende a nivel flota y su orden de llegada es simulado.</div>
     <div class="glass limit reveal"><b>Resumen por vuelo.</b> Trabajamos con promedios de cada vuelo; modelos sobre la señal segundo a segundo podrían captar transitorios que acá se pierden.</div>
     <div class="glass limit reveal d1"><b>Perfiles repetidos.</b> Los motores de prueba vuelan perfiles que también aparecen en entrenamiento; en otra flota con rutas nuevas el desempeño podría ser menor (Línea 2).</div>
   </div>
   <h3 class="reveal">Cómo reproducirlo</h3>
-  <div class="repro reveal"><span class="c"># 1) datos de Kaggle en NCMAPSS_DATA_DIR (ver README) · 2) todo el pipeline</span><br>python scripts/run_all.py<br><span class="c"># versión rápida para probar en minutos</span><br>python scripts/run_all.py --sample<br><span class="c"># sólo regenerar este informe con los resultados guardados</span><br>python scripts/run_all.py --only report</div>
+  <div class="repro reveal"><span class="c"># 1) datos de Kaggle en NCMAPSS_DATA_DIR (ver README) · 2) todo el pipeline</span><br>python scripts/run_all.py --workers 1<br><span class="c"># versión rápida para probar en minutos</span><br>python scripts/run_all.py --sample<br><span class="c"># sólo el modelo final (CV+, ACI e inspección)</span><br>python scripts/run_all.py --workers 1 --only cv_fit cv_eval entrega<br><span class="c"># regenerar informes y notebooks con los resultados guardados (no necesita los datos)</span><br>python scripts/run_all.py --only report entrega<br>python scripts/build_notebooks.py --execute</div>
 </section>
 </main>
 

@@ -185,6 +185,8 @@ def final_facts(cv: dict, mt: list[dict]) -> dict:
             "p_cv_rmse": num(aci["rmse"], 2), "p_cv_rmse_base": num(base["RMSE"], 2),
             "p_cv_units": str(cv["units_dev"]), "p_cv_folds": str(len(cv["fit"]["folds"])), "p_cv_iters": str(cv["fit"]["iteraciones"]),
             "p_cv_waste": num(low["waste"], 1), "p_cv_waste_fixed": num(fx["waste"], 1),
+            "p_cv_waste_med": num(pol["mediana"]["waste"], 1), "p_cv_late": str(low["late_engines"]),
+            "p_cv_late_fixed": str(fx["late_engines"]),
             "p_cv_save_lo": num(-gap[1], 1), "p_cv_save_hi": num(-gap[0], 1), "p_cv_tau": str(ins["lead_flights"]),
             "p_cv_test_units": str(cv["units_test"]), "p_cv_dev_cov": f"{num(100 * cv['development'][cv['chosen']]['coverage'], 1)} %",
             "p_cv_dev_rmse": num(cv["development"][cv["chosen"]]["rmse"], 1), "p_cv_test_rmse": num(aci["rmse"], 1),
@@ -281,7 +283,9 @@ def presentation_slides(R: dict) -> dict:
         S["final_changes"] = [
             f"<b>Un solo modelo:</b> CatBoost, calibrado con los {F['p_cv_units']} motores de desarrollo en lugar de {F['p_calib_units']}.",
             f"<b>Sin fuga:</b> {F['p_cv_folds']} grupos de motores; para cada uno se reentrenan modelo sano, residuos y CatBoost sin esos motores.",
-            "<b>De la predicción a la decisión:</b> se ordena la inspección cuando la cota inferior baja de un umbral elegido en desarrollo.",
+            "<b>De la predicción a la decisión:</b> se ordena la inspección cuando la cota inferior baja de un umbral elegido en desarrollo; "
+            f"es tardía si quedan menos de {F['p_cv_tau']} vuelos. Resultado: {F['p_cv_late']} tardía en {F['p_cv_test_units']} motores, "
+            f"igual que la vida fija por clase ({F['p_cv_late_fixed']}), con {F['p_cv_waste']} vuelos desperdiciados por motor contra {F['p_cv_waste_fixed']}.",
             "<b>Funciona de punta a punta:</b> del archivo crudo del motor a la decisión, usando sólo la historia hasta cada vuelo.",
         ]
         S["final_notes"] = [
@@ -291,10 +295,15 @@ def presentation_slides(R: dict) -> dict:
             f"<b>Se pasa del objetivo:</b> {F['p_cv_dev_cov']} en desarrollo y {F['p_cv_cov_plain']} en prueba ({F['p_cv_cov']} con ACI): esos motores resultaron más fáciles (RMSE {F['p_cv_test_rmse']} contra {F['p_cv_dev_rmse']}).",
             f"<b>La prueba se miró dos veces:</b> las {F['p_cv_iters']} iteraciones se eligieron sólo en desarrollo, pero ese rediseño vino después de ver un primer resultado.",
             f"<b>Puntos débiles:</b> {F['p_cv_weak_ds']} cubre {F['p_cv_ds07']}, y los {F['p_cv_tau']} vuelos para ejecutar la inspección son un supuesto nuestro.",
+            f"<b>La ganancia en la inspección viene sobre todo del pronóstico:</b> una regla equivalente sobre la mediana desperdicia {F['p_cv_waste_med']} vuelos, casi lo mismo que la cota inferior ({F['p_cv_waste']}).",
         ]
+    few = (f"<b>Pocos motores</b>: {F['p_cv_units']} de desarrollo (todos aportan a la calibración en el modelo final) y {F['p_cv_test_units']} de prueba; "
+           f"cada inspección tardía vale {num(100 / int(F['p_cv_test_units']), 1)} puntos y la cobertura conformal es aproximada."
+           if "p_cv_rows" in F else
+           f"<b>Pocos motores</b>: {F['n_units']} en total y {F.get('p_calib_units', '—')} para calibrar; la garantía conformal es aproximada.")
     S["limits"] = [
         "<b>Datos simulados</b>: C-MAPSS con vuelos reales; habría que validarlo con datos de operación.",
-        f"<b>Pocos motores</b>: {F['n_units']} en total y {F.get('p_calib_units', '—')} para calibrar; la garantía conformal es aproximada.",
+        few,
         f"<b>Un archivo dañado</b>: {F['bad_ds']} viene truncado en Kaggle y quedó afuera.",
     ]
     return S
